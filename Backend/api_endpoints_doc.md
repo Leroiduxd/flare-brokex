@@ -237,4 +237,35 @@ Envoie 1000 USDC Testnet au wallet indiqué. Chaque adresse ne peut réclamer le
 ### `GET /api/faucet/status/:address`
 Permet de vérifier si une adresse a déjà réclamé son Faucet.
 
+---
+
+## 🏦 8. Demandes de Retrait Vault LP (Queue Inspector)
+
+### `GET /api/vault/withdrawals/user/:address`
+Vérifie si une adresse de wallet donnée a des demandes de retrait LP en attente d'exécution dans la file d'attente on-chain.
+
+* **Paramètre d'URL :** `address` (adresse Web3 du trader)
+* **Exemple de réponse JSON :**
+```json
+{
+  "address": "0x1234567890abcdef...",
+  "hasPending": true,
+  "count": 1,
+  "requests": [
+    {
+      "id": 5,
+      "user": "0x1234567890abcdef...",
+      "lpAmountRemaining": "500000000",
+      "isPending": true
+    }
+  ]
+}
+```
+
+### `GET /api/vault/withdrawals/queue`
+Inspecteur de la file d'attente complète de retrait (`queueHead`, `queueTail`, plus grande demande active et tableau des demandes).
+
+* **Paramètre optionnel :** `?refresh=true` pour forcer une resynchronisation on-chain immédiate.
+
+
 

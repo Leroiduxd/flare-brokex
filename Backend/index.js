@@ -550,6 +550,50 @@ app.get(['/api/faucet/status/:address', '/faucet/status/:address'], async (req, 
 });
 
 /**
+ * GET /api/vault/withdrawals/user/:address
+ * GET /api/withdrawals/user/:address
+ * Vérifie si un wallet a des demandes de retrait LP actives (non encore soldées)
+ */
+const { getWithdrawalsByWallet, getWithdrawalQueueState, syncWithdrawalQueue } = require('./service/withdrawalService');
+
+app.get(['/api/vault/withdrawals/user/:address', '/api/withdrawals/user/:address', '/withdrawals/user/:address'], async (req, res) => {
+    try {
+        const { address } = req.params;
+        if (!address) {
+            return res.status(400).json({ error: "L'adresse du wallet est requise." });
+        }
+        // Toujours resynchroniser légèrement si demandé via query ?refresh=true
+        if (req.query.refresh === 'true' || req.query.sync === 'true') {
+            await syncWithdrawalQueue();
+        }
+
+        const data = getWithdrawalsByWallet(address);
+        res.json(data);
+    } catch (err) {
+        console.error('[API Withdrawals] Error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * GET /api/vault/withdrawals/queue
+ * GET /api/withdrawals/queue
+ * Inspecteur complet de la file d'attente de retrait (Head, Tail, Plus grosse demande, Liste active)
+ */
+app.get(['/api/vault/withdrawals/queue', '/api/withdrawals/queue', '/withdrawals/queue'], async (req, res) => {
+    try {
+        if (req.query.refresh === 'true' || req.query.sync === 'true') {
+            await syncWithdrawalQueue();
+        }
+        const queueState = getWithdrawalQueueState();
+        res.json(queueState);
+    } catch (err) {
+        console.error('[API Queue Inspector] Error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
  * GET /
  * GET /api
  * Page d'accueil / Root documentation endpoint
@@ -635,6 +679,8 @@ app.get(['/', '/api'], (req, res) => {
             baseUrl: baseUrl,
             documentation: markdown,
             endpoints: [
+                { method: "GET", path: "/api/vault/withdrawals/user/:address", description: "Vérifier si un wallet a des demandes de retrait LP actives" },
+                { method: "GET", path: "/api/vault/withdrawals/queue", description: "Inspecteur complet de la file d'attente de retrait (Head, Tail, Plus grosse demande)" },
                 { method: "POST / GET", path: "/api/faucet?address=0x...", description: "Réclamation de 1000 USDC Faucet (1 fois max par adresse)" },
                 { method: "GET", path: "/api/faucet/status/:address", description: "Vérifier si un wallet a déjà réclamé le faucet" },
                 { method: "GET", path: "/info", description: "Proxy TEE info (https://tee.brokex.trade/info)" },
