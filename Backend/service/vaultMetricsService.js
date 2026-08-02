@@ -138,6 +138,15 @@ async function fetchAndSaveVaultMetrics() {
 
         const pendingRequestsCount = queueTail >= queueHead ? Number(queueTail - queueHead) : 0;
 
+        // Calculate dynamic LP Token Price: (totalVaultUSDC - unrealizedPnL) / totalSupply
+        // Note: - unrealizedPnL inverses traders PnL (traders loss = vault profit)
+        let calculatedLpPrice = 1000000n; // Default 1.000000 (1e6)
+        if (totalSupply > 0n) {
+            const vaultNetAssets = totalVaultUSDC - unrealizedPnL;
+            const positiveNetAssets = vaultNetAssets > 0n ? vaultNetAssets : 0n;
+            calculatedLpPrice = (positiveNetAssets * 1000000n) / totalSupply;
+        }
+
         const metricsData = {
             timestamp: now,
             lastKnownPrice: lastKnownPrice.toString(),
@@ -153,7 +162,8 @@ async function fetchAndSaveVaultMetrics() {
             openInterestLong: openInterestLong.toString(),
             openInterestShort: openInterestShort.toString(),
             avgEntryPriceLong: avgEntryPriceLong.toString(),
-            avgEntryPriceShort: avgEntryPriceShort.toString()
+            avgEntryPriceShort: avgEntryPriceShort.toString(),
+            lpTokenPrice: calculatedLpPrice.toString()
         };
 
         // 4. Save metrics into SQLite database
@@ -162,8 +172,8 @@ async function fetchAndSaveVaultMetrics() {
                 INSERT INTO vault_metrics (
                     timestamp, lastKnownPrice, totalSupply, totalVaultUSDC, totalLockedCapital,
                     freeCapital, totalPendingLP, requiredFreeUSDC, pendingRequestsCount, unrealizedPnL, vaultUsageBps,
-                    openInterestLong, openInterestShort, avgEntryPriceLong, avgEntryPriceShort
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    openInterestLong, openInterestShort, avgEntryPriceLong, avgEntryPriceShort, lpTokenPrice
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
             db.run(sql, [
@@ -181,7 +191,8 @@ async function fetchAndSaveVaultMetrics() {
                 metricsData.openInterestLong,
                 metricsData.openInterestShort,
                 metricsData.avgEntryPriceLong,
-                metricsData.avgEntryPriceShort
+                metricsData.avgEntryPriceShort,
+                metricsData.lpTokenPrice
             ], (err) => {
                 if (err) return reject(err);
                 resolve();
@@ -255,6 +266,7 @@ function getVaultMetricsHistory(timeframe = '1m', fromTimestampSec = 0) {
                     currentBucket.openInterestShort = r.openInterestShort;
                     currentBucket.avgEntryPriceLong = r.avgEntryPriceLong;
                     currentBucket.avgEntryPriceShort = r.avgEntryPriceShort;
+                    currentBucket.lpTokenPrice = r.lpTokenPrice;
                 }
             }
 
