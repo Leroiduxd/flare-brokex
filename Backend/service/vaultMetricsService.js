@@ -78,14 +78,18 @@ async function fetchAndSaveVaultMetrics() {
         let avgEntryPriceShort = 0n;
 
         try {
-            const assetHash = process.env.GOLD_ASSET_HASH || process.env.GOLD_FEED_ID;
+            let assetHash = (process.env.GOLD_ASSET_HASH || '').split('#')[0].trim();
+            if (!assetHash) {
+                assetHash = (process.env.GOLD_FEED_ID || '').split('#')[0].trim();
+            }
+
             if (lensContract && assetHash) {
                 const snapshot = await lensContract.getAssetSnapshot(assetHash);
                 if (snapshot) {
-                    openInterestLong = BigInt(snapshot.openInterestLong || '0');
-                    openInterestShort = BigInt(snapshot.openInterestShort || '0');
-                    avgEntryPriceLong = BigInt(snapshot.avgEntryPriceLong || '0');
-                    avgEntryPriceShort = BigInt(snapshot.avgEntryPriceShort || '0');
+                    openInterestLong = BigInt(snapshot.openInterestLong !== undefined ? snapshot.openInterestLong : (snapshot[1] || '0'));
+                    openInterestShort = BigInt(snapshot.openInterestShort !== undefined ? snapshot.openInterestShort : (snapshot[2] || '0'));
+                    avgEntryPriceLong = BigInt(snapshot.avgEntryPriceLong !== undefined ? snapshot.avgEntryPriceLong : (snapshot[4] || '0'));
+                    avgEntryPriceShort = BigInt(snapshot.avgEntryPriceShort !== undefined ? snapshot.avgEntryPriceShort : (snapshot[5] || '0'));
 
                     const { getLatestPriceData } = require('./wss');
                     const { normalizeToContractPrice } = require('./tradeService');
