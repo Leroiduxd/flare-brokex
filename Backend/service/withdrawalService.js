@@ -49,8 +49,9 @@ function listenVaultWithdrawalEvents() {
 
         // 1. Évènement émis lorsqu'un LP demande un retrait
         readVaultContract.on('WithdrawalRequested', (requestId, user, lpAmount, event) => {
-            console.log(`[WithdrawalService Event] WithdrawalRequested detected: Request #${requestId} by ${user} (${ethers.formatUnits(lpAmount, 6)} LP)`);
-            syncWithdrawalQueue();
+            console.log(`[WithdrawalService Event] WithdrawalRequested detected: Request #${requestId} by ${user} (${ethers.formatUnits(lpAmount, 6)} LP). Triggering immediate processing check...`);
+            // Exécute immédiatement le traitement (total ou partiel selon le capital libre disponible)
+            checkAndProcessWithdrawals();
         });
 
         // 2. Évènement émis lorsqu'une demande est réglée / payée par le Keeper
