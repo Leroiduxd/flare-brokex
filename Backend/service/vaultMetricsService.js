@@ -72,44 +72,45 @@ async function fetchAndSaveVaultMetrics() {
             totalVaultUSDC = await usdcContract.balanceOf(vaultAddress).catch(() => 0n);
         }
 
-        // 3. Fetch Protocol Snapshot & Calculate real-time Unrealized PnL from open trades
+        // 3. Fetch Asset Snapshot on-chain (OI Long/Short + Prix moyens d'entrée Long/Short) via BrokexLens
         let unrealizedPnL = 0n;
         let vaultUsageBps = 0n;
 
-        // Calculate real-time Unrealized PnL for all active OPEN trades (state = 1)
         try {
-            const { getActiveTradesFromDb, normalizeToContractPrice } = require('./tradeService');
-            const { getLatestPriceData } = require('./wss');
-            const latestPriceObj = getLatestPriceData();
+            const assetHash = process.env.GOLD_ASSET_HASH || process.env.GOLD_FEED_ID;
+            if (lensContract && assetHash) {
+                const snapshot = await lensContract.getAssetSnapshot(assetHash);
+                if (snapshot) {
+                    const oiLong = BigInt(snapshot.openInterestLong || '0');
+                    const oiShort = BigInt(snapshot.openInterestShort || '0');
+                    const avgPriceLong = BigInt(snapshot.avgEntryPriceLong || '0');
+                    const avgPriceShort = BigInt(snapshot.avgEntryPriceShort || '0');
 
-            if (latestPriceObj && latestPriceObj.value) {
-                const currentPriceBig = normalizeToContractPrice(latestPriceObj.value, latestPriceObj.decimals);
-                const activeTrades = await getActiveTradesFromDb();
+                    const { getLatestPriceData } = require('./wss');
+                    const { normalizeToContractPrice } = require('./tradeService');
+                    const latestPriceObj = getLatestPriceData();
 
-                let totalPnLBig = 0n;
-                for (const t of activeTrades) {
-                    if (Number(t.state) === 1) { // STATE_OPEN
-                        const openPrice = BigInt(t.openPrice || '0');
-                        const margin = BigInt(t.margin || '0');
-                        const leverage = BigInt(t.leverage || '0');
-                        const direction = Number(t.direction);
+                    if (latestPriceObj && latestPriceObj.value) {
+                        const currentPriceBig = normalizeToContractPrice(latestPriceObj.value, latestPriceObj.decimals);
 
-                        if (openPrice > 0n && margin > 0n && leverage > 0n) {
-                            const positionSize = margin * leverage; // en 6 décimales (1e6)
-                            let pnl = 0n;
-                            if (direction === 1) { // LONG: size * (currentPrice - openPrice) / openPrice
-                                pnl = (positionSize * (currentPriceBig - openPrice)) / openPrice;
-                            } else { // SHORT: size * (openPrice - currentPrice) / openPrice
-                                pnl = (positionSize * (openPrice - currentPriceBig)) / openPrice;
-                            }
-                            totalPnLBig += pnl;
+                        // PnL Long = oiLong * (currentPrice - avgPriceLong) / avgPriceLong
+                        let pnlLong = 0n;
+                        if (oiLong > 0n && avgPriceLong > 0n) {
+                            pnlLong = (oiLong * (currentPriceBig - avgPriceLong)) / avgPriceLong;
                         }
+
+                        // PnL Short = oiShort * (avgPriceShort - currentPrice) / avgPriceShort
+                        let pnlShort = 0n;
+                        if (oiShort > 0n && avgPriceShort > 0n) {
+                            pnlShort = (oiShort * (avgPriceShort - currentPriceBig)) / avgPriceShort;
+                        }
+
+                        unrealizedPnL = pnlLong + pnlShort;
                     }
                 }
-                unrealizedPnL = totalPnLBig;
             }
         } catch (pnlErr) {
-            console.warn('[VaultMetricsService] Error calculating unrealized PnL:', pnlErr.message);
+            console.warn('[VaultMetricsService] Error calculating unrealized PnL from on-chain snapshot:', pnlErr.message);
         }
 
         if (lensContract && typeof lensContract.getProtocolSnapshot === 'function') {
