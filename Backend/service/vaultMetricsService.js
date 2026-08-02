@@ -92,9 +92,15 @@ async function fetchAndSaveVaultMetrics() {
                     avgEntryPriceLong = BigInt(snapshot.avgEntryPriceLong !== undefined ? snapshot.avgEntryPriceLong : (snapshot[4] || '0'));
                     avgEntryPriceShort = BigInt(snapshot.avgEntryPriceShort !== undefined ? snapshot.avgEntryPriceShort : (snapshot[5] || '0'));
 
-                    const { getLatestPriceData } = require('./wss');
-                    const { normalizeToContractPrice } = require('./tradeService');
-                    const latestPriceObj = getLatestPriceData();
+                    const { getLatestPriceData, getFeedPrice } = require('./wss');
+                    const { normalizeToContractPrice } = require('./executionEngine');
+                    let latestPriceObj = getLatestPriceData();
+
+                    if (!latestPriceObj || !latestPriceObj.value) {
+                        try {
+                            latestPriceObj = await getFeedPrice(process.env.GOLD_FEED_ID);
+                        } catch (e) {}
+                    }
 
                     if (latestPriceObj && latestPriceObj.value) {
                         const currentPriceBig = normalizeToContractPrice(latestPriceObj.value, latestPriceObj.decimals);
