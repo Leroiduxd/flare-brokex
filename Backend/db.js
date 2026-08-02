@@ -66,6 +66,9 @@ db.serialize(() => {
             console.error('Error creating vault_metrics table:', err.message);
         } else {
             console.log('[DB] "vault_metrics" table initialized successfully.');
+        }
+    });
+
     // Initialization of faucet_claims table
     db.run(`
         CREATE TABLE IF NOT EXISTS faucet_claims (
