@@ -509,6 +509,113 @@ const handleTeeInfo = async (req, res) => {
 app.get('/api/tee-info', handleTeeInfo);
 app.get('/info', handleTeeInfo);
 
+/**
+ * GET /
+ * GET /api
+ * Page d'accueil / Root documentation endpoint
+ */
+const fs = require('fs');
+const path = require('path');
+const docPath = path.resolve(__dirname, 'api_endpoints_doc.md');
+
+app.get(['/', '/api'], (req, res) => {
+    try {
+        let markdown = '';
+        if (fs.existsSync(docPath)) {
+            markdown = fs.readFileSync(docPath, 'utf8');
+        }
+
+        // Remplacer le host par la vraie URL d'accès si disponible
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+        // Si la requête provient d'un navigateur web (Accept: text/html)
+        if (req.accepts('html')) {
+            const htmlContent = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brokex API Documentation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            box-sizing: border-box;
+            min-width: 200px;
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 45px;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+        }
+        @media (max-width: 767px) {
+            body {
+                padding: 15px;
+            }
+        }
+        .header-banner {
+            background: linear-gradient(135deg, #1f6beb 0%, #0969da 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .header-banner h1 {
+            margin: 0 0 8px 0;
+            font-size: 28px;
+            border: none;
+        }
+        .header-banner p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-banner">
+        <h1>Brokex X Flare API</h1>
+        <p>Base URL: <code>${baseUrl}</code></p>
+    </div>
+    <div id="content" class="markdown-body"></div>
+    <script>
+        const rawMarkdown = ${JSON.stringify(markdown)};
+        document.getElementById('content').innerHTML = marked.parse(rawMarkdown);
+    </script>
+</body>
+</html>`;
+            return res.send(htmlContent);
+        }
+
+        // Sinon renvoyer au format JSON (pour curl / appels API)
+        res.json({
+            title: "Brokex Backend API",
+            baseUrl: baseUrl,
+            documentation: markdown,
+            endpoints: [
+                { method: "GET", path: "/info", description: "Proxy TEE info (https://tee.brokex.trade/info)" },
+                { method: "GET", path: "/api/volume", description: "Métriques de volume 24h, 7d et All-time" },
+                { method: "GET", path: "/api/volume/trader/:address", description: "Volume par trader" },
+                { method: "GET", path: "/api/snapshot", description: "Snapshot RAM des actifs (BrokexLens)" },
+                { method: "GET", path: "/api/chart/candles", description: "Bougies OHLC" },
+                { method: "GET", path: "/v1/shims/tradingview/history", description: "Historique UDF TradingView" },
+                { method: "GET", path: "/v1/shims/tradingview/streaming", description: "Flux temps réel SSE prix" },
+                { method: "GET", path: "/api/price-differences", description: "Variations de prix Pyth Benchmarks" },
+                { method: "GET", path: "/api/trades/trader/:address", description: "Liste des trades d'un trader" },
+                { method: "GET", path: "/api/trades/:id", description: "Détails d'un trade" },
+                { method: "GET", path: "/api/proof", description: "Signatures EIP-191 RiskProof TEE" },
+                { method: "GET", path: "/api/vault/metrics", description: "Métriques historiques du Vault/LP" }
+            ]
+        });
+    } catch (err) {
+        console.error('[API] Error rendering root documentation:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
 
 async function main() {
     console.log('[Backend] Starting Brokex Backend Service...');
