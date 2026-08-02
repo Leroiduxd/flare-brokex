@@ -1,0 +1,22 @@
+# Node dependencies
+**/node_modules/
+node_modules/
+
+# Build outputs & artifacts
+**/build/
+**/dist/
+**/artifacts/
+**/cache/
+**/typechain-types/
+
+# Database & log files
+**/database.sqlite
+database.sqlite
+*.log
+.DS_Store
+**/.DS_Store
+
+# Heavy cached data
+Backend/data/
+**/data/chart/
+**/pyth_price_differences.json

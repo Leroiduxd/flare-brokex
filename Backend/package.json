@@ -1,0 +1,17 @@
+{
+  "name": "brokex-backend",
+  "version": "1.0.0",
+  "description": "Backend ultra léger pour Brokex Perpetuals DEX sur Flare Coston2",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.0",
+    "express": "^5.2.1",
+    "sqlite3": "^5.1.7"
+  }
+}
