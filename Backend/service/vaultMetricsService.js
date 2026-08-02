@@ -72,14 +72,50 @@ async function fetchAndSaveVaultMetrics() {
             totalVaultUSDC = await usdcContract.balanceOf(vaultAddress).catch(() => 0n);
         }
 
-        // 3. Fetch Protocol Snapshot from BrokexLens (Unrealized PnL & Vault Usage BPS)
+        // 3. Fetch Protocol Snapshot & Calculate real-time Unrealized PnL from open trades
         let unrealizedPnL = 0n;
         let vaultUsageBps = 0n;
+
+        // Calculate real-time Unrealized PnL for all active OPEN trades (state = 1)
+        try {
+            const { getActiveTradesFromDb, normalizeToContractPrice } = require('./tradeService');
+            const { getLatestPriceData } = require('./wss');
+            const latestPriceObj = getLatestPriceData();
+
+            if (latestPriceObj && latestPriceObj.value) {
+                const currentPriceBig = normalizeToContractPrice(latestPriceObj.value, latestPriceObj.decimals);
+                const activeTrades = await getActiveTradesFromDb();
+
+                let totalPnLBig = 0n;
+                for (const t of activeTrades) {
+                    if (Number(t.state) === 1) { // STATE_OPEN
+                        const openPrice = BigInt(t.openPrice || '0');
+                        const margin = BigInt(t.margin || '0');
+                        const leverage = BigInt(t.leverage || '0');
+                        const direction = Number(t.direction);
+
+                        if (openPrice > 0n && margin > 0n && leverage > 0n) {
+                            const positionSize = margin * leverage; // en 6 décimales (1e6)
+                            let pnl = 0n;
+                            if (direction === 1) { // LONG: size * (currentPrice - openPrice) / openPrice
+                                pnl = (positionSize * (currentPriceBig - openPrice)) / openPrice;
+                            } else { // SHORT: size * (openPrice - currentPrice) / openPrice
+                                pnl = (positionSize * (openPrice - currentPriceBig)) / openPrice;
+                            }
+                            totalPnLBig += pnl;
+                        }
+                    }
+                }
+                unrealizedPnL = totalPnLBig;
+            }
+        } catch (pnlErr) {
+            console.warn('[VaultMetricsService] Error calculating unrealized PnL:', pnlErr.message);
+        }
+
         if (lensContract && typeof lensContract.getProtocolSnapshot === 'function') {
             try {
                 const protoSnap = await lensContract.getProtocolSnapshot();
                 if (protoSnap) {
-                    unrealizedPnL = protoSnap.unrealizedPnL || 0n;
                     vaultUsageBps = protoSnap.vaultUsageBps || 0n;
                 }
             } catch (e) {
