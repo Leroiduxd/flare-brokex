@@ -148,9 +148,37 @@ Retourne les bougies historiques au format UDF attendu par le widget TradingView
   - `from` *(optionnel)* : Timestamp Unix de début (secondes)
   - `to` *(optionnel)* : Timestamp Unix de fin (secondes)
 
+## ⚡ 4. Real-Time Price Streaming (SSE & WebSocket)
+
+### `GET /v1/shims/tradingview/streaming`
+### `GET /api/price/stream`
+### `GET /streaming`
+Flux de données de prix en temps réel basé sur **Server-Sent Events (SSE)**, compatible avec le format Pyth TradingView.
+
+* **URL de production (HTTPS) :** `https://apiflare.brokex.trade/v1/shims/tradingview/streaming`
+* **Header HTTP :** `Content-Type: text/event-stream`
+* **Exemple d'évènement reçu (JSON payload) :**
+```text
+data: {"id":"Crypto.XAU/USD","p":2038.5,"t":1700001200,"v":1,"symbol":"Crypto.XAU/USD","priceUSD":2038.5,"value":"2038500","decimals":3,"timestamp":1700001200}
+```
+
+#### 💡 Exemple d'intégration JavaScript (Navigateur / React) :
+```javascript
+const eventSource = new EventSource('https://apiflare.brokex.trade/v1/shims/tradingview/streaming');
+
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log('Nouveau prix reçu :', data.priceUSD, 'à', new Date(data.t * 1000));
+};
+
+eventSource.onerror = (err) => {
+    console.error('Erreur de connexion au flux SSE:', err);
+};
+```
+
 ---
 
-## 📉 4. Variations de Prix Pyth Benchmarks (Sauvegardées sur Disque)
+## 📉 5. Variations de Prix Pyth Benchmarks (Sauvegardées sur Disque)
 
 ### `GET /api/price-differences`
 ### `GET /api/pyth/price-differences`
@@ -160,7 +188,22 @@ Lit et envoie directement le fichier JSON `data/pyth_price_differences.json` enr
 
 ---
 
-## 💼 5. Trades & Utilisateurs
+## 💼 6. Trades & Utilisateurs
+
+### `GET /api/trades/max-id`
+### `GET /api/trades/highest-id`
+Retourne le plus grand ID de trade enregistré dans la base de données SQLite.
+
+---
+
+### `GET /api/trades/range`
+Retourne une liste complète de trades sur une plage d'IDs spécifiée.
+
+* **Paramètres de requête :**
+  - `from` *(ou `start`)* : ID de début (ex: `200`)
+  - `to` *(ou `end`)* : ID de fin (ex: `300`)
+
+---
 
 ### `GET /api/trades/trader/:traderAddress`
 Retourne tous les trades associés à une adresse Web3 de trader avec la colonne `liquidationPrice` calculée.
@@ -171,3 +214,4 @@ Retourne tous les trades associés à une adresse Web3 de trader avec la colonne
 
 ### `GET /api/trades/:tradeId`
 Retourne les détails d'un trade spécifique par son identifiant unique ID.
+
