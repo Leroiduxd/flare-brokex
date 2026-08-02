@@ -72,6 +72,7 @@ async function fetchAndSaveVaultMetrics() {
             totalVaultUSDC = await usdcContract.balanceOf(vaultAddress).catch(() => 0n);
         }
 
+        let unrealizedPnL = 0n;
         let openInterestLong = 0n;
         let openInterestShort = 0n;
         let avgEntryPriceLong = 0n;
