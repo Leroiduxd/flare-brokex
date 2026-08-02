@@ -215,3 +215,26 @@ Retourne tous les trades associés à une adresse Web3 de trader avec la colonne
 ### `GET /api/trades/:tradeId`
 Retourne les détails d'un trade spécifique par son identifiant unique ID.
 
+---
+
+## 🚰 7. Faucet USDC (Testnet)
+
+### `POST /api/faucet` ou `GET /api/faucet?address=0x...`
+Envoie 1000 USDC Testnet au wallet indiqué. Chaque adresse ne peut réclamer les 1000 USDC qu'une seule fois.
+
+* **Paramètre / Body :** `address` (adresse EVM du destinataire)
+* **Exemple de réponse JSON :**
+```json
+{
+  "success": true,
+  "address": "0x1234567890123456789012345678901234567890",
+  "amount": "1000",
+  "txHash": "0xabc123...",
+  "blockNumber": 123456
+}
+```
+
+### `GET /api/faucet/status/:address`
+Permet de vérifier si une adresse a déjà réclamé son Faucet.
+
+

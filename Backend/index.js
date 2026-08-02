@@ -510,6 +510,46 @@ app.get('/api/tee-info', handleTeeInfo);
 app.get('/info', handleTeeInfo);
 
 /**
+ * POST /api/faucet
+ * GET /api/faucet?address=0x...
+ * Envoie 1000 USDC Faucet à un wallet (limité à 1 seule réclamation par adresse)
+ */
+const { claimFaucet, getFaucetClaim } = require('./service/faucetService');
+
+app.all(['/api/faucet', '/faucet'], async (req, res) => {
+    try {
+        const address = req.body?.address || req.query?.address;
+        if (!address) {
+            return res.status(400).json({ error: 'L\'adresse du wallet est requise. (Ex: /api/faucet?address=0x... ou body JSON { "address": "0x..." })' });
+        }
+
+        const result = await claimFaucet(address);
+        res.json(result);
+    } catch (err) {
+        console.error('[API Faucet] Error:', err.message);
+        res.status(400).json({ error: err.message });
+    }
+});
+
+/**
+ * GET /api/faucet/status/:address
+ * Vérifie si un wallet a déjà réclamé les USDC
+ */
+app.get(['/api/faucet/status/:address', '/faucet/status/:address'], async (req, res) => {
+    try {
+        const { address } = req.params;
+        const claim = await getFaucetClaim(address);
+        res.json({
+            address,
+            hasClaimed: !!claim,
+            claim: claim || null
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
  * GET /
  * GET /api
  * Page d'accueil / Root documentation endpoint
@@ -595,6 +635,8 @@ app.get(['/', '/api'], (req, res) => {
             baseUrl: baseUrl,
             documentation: markdown,
             endpoints: [
+                { method: "POST / GET", path: "/api/faucet?address=0x...", description: "Réclamation de 1000 USDC Faucet (1 fois max par adresse)" },
+                { method: "GET", path: "/api/faucet/status/:address", description: "Vérifier si un wallet a déjà réclamé le faucet" },
                 { method: "GET", path: "/info", description: "Proxy TEE info (https://tee.brokex.trade/info)" },
                 { method: "GET", path: "/api/volume", description: "Métriques de volume 24h, 7d et All-time" },
                 { method: "GET", path: "/api/volume/trader/:address", description: "Volume par trader" },
