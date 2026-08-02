@@ -460,6 +460,56 @@ const handleVaultMetricsHistory = async (req, res) => {
 app.get('/api/vault/metrics', handleVaultMetricsHistory);
 app.get('/api/lp/metrics', handleVaultMetricsHistory);
 
+/**
+ * GET /api/tee-proof
+ * GET /api/proof
+ * GET /proof
+ * Returns signed EIP-191 RiskProof struct for BrokexCore openMarketPosition contract call
+ */
+const { fetchTeeRiskProof } = require('./service/executionEngine');
+const handleTeeProof = async (req, res) => {
+    try {
+        const assetHash = req.query.assetHash || process.env.GOLD_ASSET_HASH || process.env.GOLD_FEED_ID;
+        const proof = await fetchTeeRiskProof(assetHash);
+        res.json({
+            assetHash: proof.assetHash,
+            maxOILong: proof.maxOILong.toString(),
+            maxOIShort: proof.maxOIShort.toString(),
+            spreadLong: proof.spreadLong.toString(),
+            spreadShort: proof.spreadShort.toString(),
+            timestamp: proof.timestamp.toString(),
+            sig: proof.sig
+        });
+    } catch (err) {
+        console.error('[API] Error generating TEE proof:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+app.get('/api/tee-proof', handleTeeProof);
+app.get('/api/proof', handleTeeProof);
+app.get('/proof', handleTeeProof);
+
+/**
+ * GET /api/tee-info
+ * GET /info
+ * Proxy vers https://tee.brokex.trade/info
+ */
+const handleTeeInfo = async (req, res) => {
+    try {
+        const response = await fetch('https://tee.brokex.trade/info');
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (err) {
+        console.error('[API] Error fetching TEE info:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+app.get('/api/tee-info', handleTeeInfo);
+app.get('/info', handleTeeInfo);
+
+
 async function main() {
     console.log('[Backend] Starting Brokex Backend Service...');
 
