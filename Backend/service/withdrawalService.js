@@ -31,9 +31,39 @@ if (vaultAddress && coreAddress) {
 let requestsCache = [];
 let queueHeadVal = 0;
 let queueTailVal = 0;
-let biggestPendingRequest = null;
 let isSyncing = false;
 let isProcessing = false;
+let isListeningEvents = false;
+
+/**
+ * Ecoute en direct les évènements on-chain du Vault (`WithdrawalRequested` et `WithdrawalPaid`)
+ * pour resynchroniser instantanément la file d'attente dès qu'une demande est soumise ou payée.
+ */
+function listenVaultWithdrawalEvents() {
+    if (isListeningEvents || !vaultAddress) return;
+    isListeningEvents = true;
+
+    try {
+        const abi = brokexVaultAbi.abi || brokexVaultAbi;
+        const readVaultContract = new ethers.Contract(vaultAddress, abi, provider);
+
+        // 1. Évènement émis lorsqu'un LP demande un retrait
+        readVaultContract.on('WithdrawalRequested', (requestId, user, lpAmount, event) => {
+            console.log(`[WithdrawalService Event] WithdrawalRequested detected: Request #${requestId} by ${user} (${ethers.formatUnits(lpAmount, 6)} LP)`);
+            syncWithdrawalQueue();
+        });
+
+        // 2. Évènement émis lorsqu'une demande est réglée / payée par le Keeper
+        readVaultContract.on('WithdrawalPaid', (requestId, user, lpBurned, usdcPaid, price, event) => {
+            console.log(`[WithdrawalService Event] WithdrawalPaid detected: Request #${requestId} for ${user}`);
+            syncWithdrawalQueue();
+        });
+
+        console.log('[WithdrawalService] Live WebSocket/RPC event listener active for WithdrawalRequested & WithdrawalPaid.');
+    } catch (err) {
+        console.error('[WithdrawalService] Error setting up event listener:', err.message);
+    }
+}
 
 /**
  * Synchronise les demandes de retrait depuis la blockchain.
@@ -56,13 +86,10 @@ async function syncWithdrawalQueue() {
 
         if (queueTailVal === 0) {
             requestsCache = [];
-            biggestPendingRequest = null;
             return;
         }
 
         const newCache = [];
-        let maxLp = 0n;
-        let maxReq = null;
 
         // Lecture par lots de 20 depuis queueHead jusqu'à queueTail
         const batchSize = 20;
@@ -77,7 +104,6 @@ async function syncWithdrawalQueue() {
                         user: req.user,
                         userLower: req.user.toLowerCase(),
                         lpAmountRemaining: req.lpAmountRemaining.toString(),
-                        lpAmountRaw: req.lpAmountRemaining,
                         isPending: id >= queueHeadVal && req.lpAmountRemaining > 0n
                     })).catch(() => null)
                 );
@@ -87,17 +113,11 @@ async function syncWithdrawalQueue() {
             for (const item of batch) {
                 if (item) {
                     newCache.push(item);
-                    if (item.isPending && item.lpAmountRaw > maxLp) {
-                        maxLp = item.lpAmountRaw;
-                        maxReq = item;
-                    }
                 }
             }
         }
 
         requestsCache = newCache;
-        biggestPendingRequest = maxReq;
-
         console.log(`[WithdrawalService] Queue sync complete: ${requestsCache.length} pending request(s) cached. (Head: ${queueHeadVal}, Tail: ${queueTailVal})`);
     } catch (err) {
         console.error('[WithdrawalService] Error syncing queue:', err.message);
@@ -108,7 +128,7 @@ async function syncWithdrawalQueue() {
 
 /**
  * Checks pending LP withdrawal queue and processes them on-chain if free capital is available.
- * Reli la queue immédiatement après le traitement.
+ * Resynchronise la queue immédiatement après le traitement.
  */
 async function checkAndProcessWithdrawals() {
     if (isProcessing) return;
@@ -182,19 +202,17 @@ function getWithdrawalQueueState() {
         queueHead: queueHeadVal,
         queueTail: queueTailVal,
         pendingCount: requestsCache.length,
-        biggestPendingRequest: biggestPendingRequest ? {
-            id: biggestPendingRequest.id,
-            user: biggestPendingRequest.user,
-            lpAmountRemaining: biggestPendingRequest.lpAmountRemaining
-        } : null,
         requests: requestsCache
     };
 }
 
 /**
- * Starts 10-minute cron interval for withdrawal checking
+ * Starts 10-minute cron interval for withdrawal checking & launches live event listener
  */
 function startWithdrawalCron(intervalMs = 10 * 60 * 1000) {
+    // Activer l'écouteur d'évènements en temps réel
+    listenVaultWithdrawalEvents();
+
     checkAndProcessWithdrawals();
 
     setInterval(() => {
@@ -207,6 +225,7 @@ module.exports = {
     startWithdrawalCron,
     syncWithdrawalQueue,
     getWithdrawalsByWallet,
-    getWithdrawalQueueState
+    getWithdrawalQueueState,
+    listenVaultWithdrawalEvents
 };
 
