@@ -181,11 +181,33 @@ async function checkAndProcessWithdrawals() {
 
 /**
  * Recherche des demandes de retrait actives pour une adresse de wallet.
+ * Inclut le nombre de demandes devant (queue position) et la somme cumulée en LP tokens.
  */
 function getWithdrawalsByWallet(address) {
     if (!address) return { hasPending: false, requests: [] };
     const normalized = address.toLowerCase();
-    const userRequests = requestsCache.filter(r => r.userLower === normalized && r.isPending);
+
+    // Récupérer toutes les demandes actives triées par ID croissant
+    const activeRequests = requestsCache.filter(r => r.isPending).sort((a, b) => a.id - b.id);
+
+    const userRequests = [];
+    let accumulatedLpAhead = 0n;
+
+    for (let i = 0; i < activeRequests.length; i++) {
+        const req = activeRequests[i];
+        const reqLpAmount = BigInt(req.lpAmountRemaining || '0');
+
+        if (req.userLower === normalized) {
+            userRequests.push({
+                ...req,
+                queuePosition: i + 1,                     // Rang dans la file active (1 = tout premier)
+                requestsAhead: i,                         // Nombre de demandes avant elle
+                lpAhead: accumulatedLpAhead.toString()   // Somme des LP tokens en attente avant cette demande
+            });
+        }
+
+        accumulatedLpAhead += reqLpAmount;
+    }
 
     return {
         address,
