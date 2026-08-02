@@ -59,7 +59,11 @@ db.serialize(() => {
             requiredFreeUSDC TEXT NOT NULL,
             pendingRequestsCount INTEGER NOT NULL,
             unrealizedPnL TEXT NOT NULL,
-            vaultUsageBps TEXT NOT NULL
+            vaultUsageBps TEXT NOT NULL,
+            openInterestLong TEXT DEFAULT '0',
+            openInterestShort TEXT DEFAULT '0',
+            avgEntryPriceLong TEXT DEFAULT '0',
+            avgEntryPriceShort TEXT DEFAULT '0'
         )
     `, (err) => {
         if (err) {
@@ -68,6 +72,12 @@ db.serialize(() => {
             console.log('[DB] "vault_metrics" table initialized successfully.');
         }
     });
+
+    // Ensure migrations for vault_metrics table
+    db.run(`ALTER TABLE vault_metrics ADD COLUMN openInterestLong TEXT DEFAULT '0'`, () => {});
+    db.run(`ALTER TABLE vault_metrics ADD COLUMN openInterestShort TEXT DEFAULT '0'`, () => {});
+    db.run(`ALTER TABLE vault_metrics ADD COLUMN avgEntryPriceLong TEXT DEFAULT '0'`, () => {});
+    db.run(`ALTER TABLE vault_metrics ADD COLUMN avgEntryPriceShort TEXT DEFAULT '0'`, () => {});
 
     // Initialization of faucet_claims table
     db.run(`

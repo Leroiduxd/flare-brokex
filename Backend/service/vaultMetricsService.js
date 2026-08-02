@@ -72,19 +72,20 @@ async function fetchAndSaveVaultMetrics() {
             totalVaultUSDC = await usdcContract.balanceOf(vaultAddress).catch(() => 0n);
         }
 
-        // 3. Fetch Asset Snapshot on-chain (OI Long/Short + Prix moyens d'entrée Long/Short) via BrokexLens
-        let unrealizedPnL = 0n;
-        let vaultUsageBps = 0n;
+        let openInterestLong = 0n;
+        let openInterestShort = 0n;
+        let avgEntryPriceLong = 0n;
+        let avgEntryPriceShort = 0n;
 
         try {
             const assetHash = process.env.GOLD_ASSET_HASH || process.env.GOLD_FEED_ID;
             if (lensContract && assetHash) {
                 const snapshot = await lensContract.getAssetSnapshot(assetHash);
                 if (snapshot) {
-                    const oiLong = BigInt(snapshot.openInterestLong || '0');
-                    const oiShort = BigInt(snapshot.openInterestShort || '0');
-                    const avgPriceLong = BigInt(snapshot.avgEntryPriceLong || '0');
-                    const avgPriceShort = BigInt(snapshot.avgEntryPriceShort || '0');
+                    openInterestLong = BigInt(snapshot.openInterestLong || '0');
+                    openInterestShort = BigInt(snapshot.openInterestShort || '0');
+                    avgEntryPriceLong = BigInt(snapshot.avgEntryPriceLong || '0');
+                    avgEntryPriceShort = BigInt(snapshot.avgEntryPriceShort || '0');
 
                     const { getLatestPriceData } = require('./wss');
                     const { normalizeToContractPrice } = require('./tradeService');
@@ -95,14 +96,14 @@ async function fetchAndSaveVaultMetrics() {
 
                         // PnL Long = oiLong * (currentPrice - avgPriceLong) / avgPriceLong
                         let pnlLong = 0n;
-                        if (oiLong > 0n && avgPriceLong > 0n) {
-                            pnlLong = (oiLong * (currentPriceBig - avgPriceLong)) / avgPriceLong;
+                        if (openInterestLong > 0n && avgEntryPriceLong > 0n) {
+                            pnlLong = (openInterestLong * (currentPriceBig - avgEntryPriceLong)) / avgEntryPriceLong;
                         }
 
                         // PnL Short = oiShort * (avgPriceShort - currentPrice) / avgPriceShort
                         let pnlShort = 0n;
-                        if (oiShort > 0n && avgPriceShort > 0n) {
-                            pnlShort = (oiShort * (avgPriceShort - currentPriceBig)) / avgPriceShort;
+                        if (openInterestShort > 0n && avgEntryPriceShort > 0n) {
+                            pnlShort = (openInterestShort * (avgEntryPriceShort - currentPriceBig)) / avgEntryPriceShort;
                         }
 
                         unrealizedPnL = pnlLong + pnlShort;
@@ -137,7 +138,11 @@ async function fetchAndSaveVaultMetrics() {
             requiredFreeUSDC: requiredFreeUSDC.toString(),
             pendingRequestsCount,
             unrealizedPnL: unrealizedPnL.toString(),
-            vaultUsageBps: vaultUsageBps.toString()
+            vaultUsageBps: vaultUsageBps.toString(),
+            openInterestLong: openInterestLong.toString(),
+            openInterestShort: openInterestShort.toString(),
+            avgEntryPriceLong: avgEntryPriceLong.toString(),
+            avgEntryPriceShort: avgEntryPriceShort.toString()
         };
 
         // 4. Save metrics into SQLite database
@@ -145,8 +150,9 @@ async function fetchAndSaveVaultMetrics() {
             const sql = `
                 INSERT INTO vault_metrics (
                     timestamp, lastKnownPrice, totalSupply, totalVaultUSDC, totalLockedCapital,
-                    freeCapital, totalPendingLP, requiredFreeUSDC, pendingRequestsCount, unrealizedPnL, vaultUsageBps
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    freeCapital, totalPendingLP, requiredFreeUSDC, pendingRequestsCount, unrealizedPnL, vaultUsageBps,
+                    openInterestLong, openInterestShort, avgEntryPriceLong, avgEntryPriceShort
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
             db.run(sql, [
@@ -160,7 +166,11 @@ async function fetchAndSaveVaultMetrics() {
                 metricsData.requiredFreeUSDC,
                 metricsData.pendingRequestsCount,
                 metricsData.unrealizedPnL,
-                metricsData.vaultUsageBps
+                metricsData.vaultUsageBps,
+                metricsData.openInterestLong,
+                metricsData.openInterestShort,
+                metricsData.avgEntryPriceLong,
+                metricsData.avgEntryPriceShort
             ], (err) => {
                 if (err) return reject(err);
                 resolve();
@@ -230,6 +240,10 @@ function getVaultMetricsHistory(timeframe = '1m', fromTimestampSec = 0) {
                     currentBucket.pendingRequestsCount = r.pendingRequestsCount;
                     currentBucket.unrealizedPnL = r.unrealizedPnL;
                     currentBucket.vaultUsageBps = r.vaultUsageBps;
+                    currentBucket.openInterestLong = r.openInterestLong;
+                    currentBucket.openInterestShort = r.openInterestShort;
+                    currentBucket.avgEntryPriceLong = r.avgEntryPriceLong;
+                    currentBucket.avgEntryPriceShort = r.avgEntryPriceShort;
                 }
             }
 
