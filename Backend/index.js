@@ -53,10 +53,11 @@ function mapResolutionToMinutes(res) {
  * HTTP Server-Sent Events (SSE) streaming endpoint matching Pyth TradingView shim format.
  * Streams real-time price updates for XAU/USD (Gold).
  */
-const handlePriceStream = (req, res) => {
+const handlePriceStream = async (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Empêche Nginx de bloquer/bufferiser le flux SSE !
     res.setHeader('Access-Control-Allow-Origin', '*');
     if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
@@ -75,21 +76,34 @@ const handlePriceStream = (req, res) => {
         };
     };
 
-    // Send latest price data immediately if available
-    const currentPrice = getLatestPriceData();
+    // Envoyer immédiatement les données du dernier prix si disponibles
+    let currentPrice = getLatestPriceData();
+    if (!currentPrice) {
+        try {
+            const { getFeedPrice } = require('./service/wss');
+            currentPrice = await getFeedPrice(process.env.GOLD_FEED_ID);
+        } catch (e) {}
+    }
+
     if (currentPrice) {
         res.write(`data: ${JSON.stringify(formatPayload(currentPrice))}\n\n`);
     }
 
-    // Listener for new price updates
+    // Listener pour les mises à jour en direct
     const onPriceUpdate = (data) => {
         res.write(`data: ${JSON.stringify(formatPayload(data))}\n\n`);
     };
 
     priceEmitter.on('priceUpdate', onPriceUpdate);
 
-    // Clean up when client disconnects
+    // Envoi d'un keep-alive commenté toutes les 15s pour éviter le timeout HTTP
+    const keepAliveTimer = setInterval(() => {
+        res.write(': keep-alive\n\n');
+    }, 15000);
+
+    // Nettoyage lors de la déconnexion du client
     req.on('close', () => {
+        clearInterval(keepAliveTimer);
         priceEmitter.off('priceUpdate', onPriceUpdate);
         res.end();
     });
