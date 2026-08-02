@@ -15,7 +15,7 @@ http://localhost:3000
 
 ### `GET /api/volume`
 ### `GET /api/protocol/volume`
-Retourne les métriques de volume (24h, 7d, All-Time) ainsi que les statistiques globales du protocole.
+Retourne les métriques de volume (24h, 7d, All-Time), les Borrow Fees par période (24h, 7d, 30d, All-Time calculés sur les `closeTimestamp`) ainsi que les statistiques globales du protocole.
 
 * **Paramètres de requête :** Aucun
 * **Exemple de réponse JSON :**
@@ -36,6 +36,12 @@ Retourne les métriques de volume (24h, 7d, All-Time) ainsi que les statistiques
     "shortVolume": "18738",
     "totalVolume": "36690"
   },
+  "borrowFees": {
+    "f24h": { "totalBorrowFee": "150200", "closedTradesCount": 5 },
+    "f7d": { "totalBorrowFee": "840500", "closedTradesCount": 24 },
+    "f30d": { "totalBorrowFee": "3200100", "closedTradesCount": 98 },
+    "allTime": { "totalBorrowFee": "5400000", "closedTradesCount": 142 }
+  },
   "stats": {
     "totalTradesCount": 133,
     "totalUniqueTraders": 1,
@@ -45,6 +51,36 @@ Retourne les métriques de volume (24h, 7d, All-Time) ainsi que les statistiques
     "avgLeverageShort": "10",
     "totalBorrowFee": "620535"
   }
+}
+```
+
+---
+
+### `GET /api/borrow-fees/chart`
+### `GET /api/fees/chart`
+Retourne les séries temporelles des Borrow Fees agrégés par intervalle (par heure `1h` par défaut, `4h`, `1d`) de tout l'historique disponible, avec les totaux par période et le cumulatif.
+
+* **Paramètres de requête :**
+  - `timeframe` *(optionnel)* : `1h`, `4h`, `1d` (défaut : `1h`)
+* **Exemple de réponse JSON :**
+```json
+{
+  "count": 48,
+  "timeframe": "1h",
+  "data": [
+    {
+      "timestamp": 1785640000,
+      "periodFee": "15000",
+      "cumulativeFee": "15000",
+      "tradesCount": 2
+    },
+    {
+      "timestamp": 1785643600,
+      "periodFee": "32000",
+      "cumulativeFee": "47000",
+      "tradesCount": 4
+    }
+  ]
 }
 ```
 

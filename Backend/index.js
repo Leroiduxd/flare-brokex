@@ -363,6 +363,28 @@ app.get('/api/volume', handleProtocolVolume);
 app.get('/api/protocol/volume', handleProtocolVolume);
 
 /**
+ * GET /api/borrow-fees/chart
+ * GET /api/fees/chart
+ * Returns hourly aggregated borrow fees time series for chart display.
+ */
+const { getBorrowFeeChart } = require('./service/volumeService');
+
+app.get(['/api/borrow-fees/chart', '/api/fees/chart', '/borrow-fees/chart'], async (req, res) => {
+    try {
+        const timeframe = req.query.timeframe || req.query.resolution || '1h';
+        const chartData = await getBorrowFeeChart(timeframe);
+        res.json({
+            count: chartData.length,
+            timeframe,
+            data: chartData
+        });
+    } catch (err) {
+        console.error('[API] Error fetching borrow fees chart:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
  * GET /api/volume/trader/:traderAddress
  * GET /api/trader/volume/:traderAddress
  * Returns 24h, 7d, and All-Time volume metrics for a specific trader.
@@ -684,7 +706,8 @@ app.get(['/', '/api'], (req, res) => {
                 { method: "POST / GET", path: "/api/faucet?address=0x...", description: "Réclamation de 1000 USDC Faucet (1 fois max par adresse)" },
                 { method: "GET", path: "/api/faucet/status/:address", description: "Vérifier si un wallet a déjà réclamé le faucet" },
                 { method: "GET", path: "/info", description: "Proxy TEE info (https://tee.brokex.trade/info)" },
-                { method: "GET", path: "/api/volume", description: "Métriques de volume 24h, 7d et All-time" },
+                { method: "GET", path: "/api/borrow-fees/chart", description: "Historique et séries temporelles (1h, 4h, 1d) des frais de prêt (Borrow Fees)" },
+                { method: "GET", path: "/api/volume", description: "Métriques de volume (24h, 7d, All-Time) et Borrow Fees par période (24h, 7d, 30d, All-Time)" },
                 { method: "GET", path: "/api/volume/trader/:address", description: "Volume par trader" },
                 { method: "GET", path: "/api/snapshot", description: "Snapshot RAM des actifs (BrokexLens)" },
                 { method: "GET", path: "/api/chart/candles", description: "Bougies OHLC" },

@@ -97,6 +97,94 @@ function getTraderVolumes(traderAddress) {
 /**
  * Récupère tous les volumes du protocole (24h, 7d, All-Time) ainsi que les statistiques globales.
  */
+/**
+ * Calcule les métriques de Borrow Fees pour une période donnée basées sur closeTimestamp.
+ * @param {Array} trades 
+ * @param {number} startTimeSec 
+ */
+function calculateBorrowFeesForPeriod(trades, startTimeSec = 0) {
+    let totalBorrowFees = 0n;
+    let closedTradesCount = 0;
+
+    for (const r of trades) {
+        const state = Number(r.state);
+        const closeTime = Number(r.closeTimestamp || '0');
+        const borrowFee = BigInt(r.borrowFee || '0');
+
+        // Seuls les trades fermés (STATE_CLOSED = 2, LIQUIDATED = 4, etc.) ont leurs frais de prêt déduits/comptabilisés
+        if (state >= STATE_CLOSED && closeTime >= startTimeSec) {
+            totalBorrowFees += borrowFee;
+            closedTradesCount++;
+        }
+    }
+
+    return {
+        totalBorrowFee: totalBorrowFees.toString(),
+        closedTradesCount
+    };
+}
+
+/**
+ * Génère des bougies/points temporels de Borrow Fees agrégés (par heure : 3600s).
+ * @param {string|number} timeframe - '1h', '4h', '1d' ou intervalle en secondes (défaut '1h')
+ */
+function getBorrowFeeChart(timeframe = '1h') {
+    return new Promise((resolve, reject) => {
+        const sql = `SELECT id, state, closeTimestamp, borrowFee FROM trades WHERE state >= 2 AND CAST(closeTimestamp AS INTEGER) > 0 ORDER BY CAST(closeTimestamp AS INTEGER) ASC`;
+
+        db.all(sql, [], (err, rows) => {
+            if (err) return reject(err);
+
+            let intervalSec = 3600; // 1 heure par défaut
+            const tfStr = timeframe.toString().toLowerCase();
+            if (tfStr === '4h' || tfStr === '240') intervalSec = 4 * 3600;
+            else if (tfStr === '1d' || tfStr === '1440' || tfStr === 'd') intervalSec = 24 * 3600;
+
+            if (!rows || rows.length === 0) {
+                return resolve([]);
+            }
+
+            const bucketsMap = new Map();
+
+            for (const r of rows) {
+                const closeTime = Number(r.closeTimestamp || '0');
+                if (closeTime <= 0) continue;
+
+                const bucketTime = Math.floor(closeTime / intervalSec) * intervalSec;
+                const fee = BigInt(r.borrowFee || '0');
+
+                if (!bucketsMap.has(bucketTime)) {
+                    bucketsMap.set(bucketTime, {
+                        timestamp: bucketTime,
+                        feesBig: fee,
+                        count: 1
+                    });
+                } else {
+                    const b = bucketsMap.get(bucketTime);
+                    b.feesBig += fee;
+                    b.count += 1;
+                }
+            }
+
+            // Convertir en tableau trié avec cumulatif
+            const result = [];
+            let cumulativeFeesBig = 0n;
+
+            for (const [timestamp, b] of Array.from(bucketsMap.entries()).sort((a, b) => a[0] - b[0])) {
+                cumulativeFeesBig += b.feesBig;
+                result.push({
+                    timestamp: b.timestamp,
+                    periodFee: b.feesBig.toString(),
+                    cumulativeFee: cumulativeFeesBig.toString(),
+                    tradesCount: b.count
+                });
+            }
+
+            resolve(result);
+        });
+    });
+}
+
 function getProtocolVolumes() {
     return new Promise((resolve, reject) => {
         const sql = `SELECT trader, state, direction, margin, leverage, openTimestamp, closeTimestamp, borrowFee FROM trades`;
@@ -107,10 +195,17 @@ function getProtocolVolumes() {
             const now = Math.floor(Date.now() / 1000);
             const time24hAgo = now - (24 * 60 * 60);
             const time7dAgo = now - (7 * 24 * 60 * 60);
+            const time30dAgo = now - (30 * 24 * 60 * 60);
 
             const volume24h = calculateVolumeForPeriod(rows, time24hAgo);
             const volume7d  = calculateVolumeForPeriod(rows, time7dAgo);
             const volumeAllTime = calculateVolumeForPeriod(rows, 0);
+
+            // Borrow Fees par périodes (closeTimestamp)
+            const borrowFees24h = calculateBorrowFeesForPeriod(rows, time24hAgo);
+            const borrowFees7d  = calculateBorrowFeesForPeriod(rows, time7dAgo);
+            const borrowFees30d = calculateBorrowFeesForPeriod(rows, time30dAgo);
+            const borrowFeesAllTime = calculateBorrowFeesForPeriod(rows, 0);
 
             // 1. Nombre total de trades uniques depuis le début
             const totalTradesCount = rows.length;
@@ -169,6 +264,12 @@ function getProtocolVolumes() {
                 v24h: volume24h,
                 v7d: volume7d,
                 allTime: volumeAllTime,
+                borrowFees: {
+                    f24h: borrowFees24h,
+                    f7d: borrowFees7d,
+                    f30d: borrowFees30d,
+                    allTime: borrowFeesAllTime
+                },
                 stats: {
                     totalTradesCount,
                     totalUniqueTraders: uniqueTradersSet.size,
@@ -209,4 +310,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { getProtocolVolumes, getTraderVolumes, calculateVolumeForPeriod };
+module.exports = { getProtocolVolumes, getTraderVolumes, calculateVolumeForPeriod, calculateBorrowFeesForPeriod, getBorrowFeeChart };
