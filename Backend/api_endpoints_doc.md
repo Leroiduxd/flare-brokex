@@ -253,6 +253,31 @@ Retourne les détails d'un trade spécifique par son identifiant unique ID.
 
 ---
 
+## 🔒 7. Proxy TEE (Trusted Execution Environment)
+
+### `GET /risk-params` ou `GET /api/risk-params`
+Proxy direct vers l'enclave TEE (`https://tee.brokex.trade/risk-params`). Retourne les paramètres de risque dynamiques du TEE (Asset Hash, OI max Long/Short, Spreads Long/Short, Volatilité, etc.).
+
+* **Exemple de réponse JSON :**
+```json
+{
+  "assetHash": "0x5656b83664973a9b4e2c18d45b7578e6746ee4a565da62e3ac579fb9e05acc55",
+  "maxOILong": 37500,
+  "maxOIShort": 37500,
+  "spreadLongBps": 30,
+  "spreadShortBps": 30,
+  "riskActivation": 0,
+  "pnlStressRatio": 0,
+  "volatility": 0.075,
+  "timestamp": 1785758222
+}
+```
+
+### `GET /info` ou `GET /api/tee-info`
+Proxy direct vers les informations système de l'enclave TEE (`https://tee.brokex.trade/info`).
+
+---
+
 ## 🚰 7. Faucet USDC (Testnet)
 
 ### `POST /api/faucet` ou `GET /api/faucet?address=0x...`

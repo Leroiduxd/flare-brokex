@@ -546,6 +546,27 @@ app.get('/api/tee-info', handleTeeInfo);
 app.get('/info', handleTeeInfo);
 
 /**
+ * GET /api/risk-params
+ * GET /risk-params
+ * Proxy vers https://tee.brokex.trade/risk-params
+ */
+const handleTeeRiskParams = async (req, res) => {
+    try {
+        const response = await fetch('https://tee.brokex.trade/risk-params');
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (err) {
+        console.error('[API] Error fetching TEE risk-params:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+app.get('/api/risk-params', handleTeeRiskParams);
+app.get('/api/tee-risk-params', handleTeeRiskParams);
+app.get('/risk-params', handleTeeRiskParams);
+
+
+/**
  * POST /api/faucet
  * GET /api/faucet?address=0x...
  * Envoie 1000 USDC Faucet à un wallet (limité à 1 seule réclamation par adresse)
@@ -720,6 +741,7 @@ app.get(['/', '/api'], (req, res) => {
                 { method: "POST / GET", path: "/api/faucet?address=0x...", description: "Réclamation de 1000 USDC Faucet (1 fois max par adresse)" },
                 { method: "GET", path: "/api/faucet/status/:address", description: "Vérifier si un wallet a déjà réclamé le faucet" },
                 { method: "GET", path: "/info", description: "Proxy TEE info (https://tee.brokex.trade/info)" },
+                { method: "GET", path: "/risk-params", description: "Proxy TEE risk params (https://tee.brokex.trade/risk-params)" },
                 { method: "GET", path: "/api/borrow-fees/chart", description: "Historique et séries temporelles (1h, 4h, 1d) des frais de prêt (Borrow Fees)" },
                 { method: "GET", path: "/api/volume", description: "Métriques de volume (24h, 7d, All-Time) et Borrow Fees par période (24h, 7d, 30d, All-Time)" },
                 { method: "GET", path: "/api/volume/trader/:address", description: "Volume par trader" },
