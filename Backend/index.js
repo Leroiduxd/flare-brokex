@@ -61,8 +61,10 @@ const handlePriceStream = async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
+    const targetSymbol = req.query.symbol ? req.query.symbol.trim() : null;
+
     const formatPayload = (priceData) => {
-        const symbol = req.query.symbol || chartConfig.symbols[0];
+        const symbol = priceData.symbol || targetSymbol || chartConfig.symbols[0];
         return {
             id: symbol,
             p: priceData.priceUSD,
@@ -76,22 +78,27 @@ const handlePriceStream = async (req, res) => {
         };
     };
 
-    // Envoyer immédiatement les données du dernier prix si disponibles
-    let currentPrice = getLatestPriceData();
-    if (!currentPrice) {
-        try {
-            const { getFeedPrice } = require('./service/wss');
-            currentPrice = await getFeedPrice(process.env.GOLD_FEED_ID);
-        } catch (e) {}
+    // Envoyer immédiatement les données des derniers prix si disponibles
+    if (targetSymbol) {
+        let currentPrice = getLatestPriceData(targetSymbol);
+        if (currentPrice) {
+            res.write(`data: ${JSON.stringify(formatPayload(currentPrice))}\n\n`);
+        }
+    } else {
+        // Envoie les prix initiaux de tous les symboles configurés
+        for (const sym of chartConfig.symbols) {
+            const price = getLatestPriceData(sym);
+            if (price) {
+                res.write(`data: ${JSON.stringify(formatPayload(price))}\n\n`);
+            }
+        }
     }
 
-    if (currentPrice) {
-        res.write(`data: ${JSON.stringify(formatPayload(currentPrice))}\n\n`);
-    }
-
-    // Listener pour les mises à jour en direct
+    // Listener pour les mises à jour en direct (Or & XRP)
     const onPriceUpdate = (data) => {
-        res.write(`data: ${JSON.stringify(formatPayload(data))}\n\n`);
+        if (!targetSymbol || targetSymbol.toLowerCase() === data.symbol.toLowerCase()) {
+            res.write(`data: ${JSON.stringify(formatPayload(data))}\n\n`);
+        }
     };
 
     priceEmitter.on('priceUpdate', onPriceUpdate);
@@ -565,6 +572,27 @@ app.get('/api/risk-params', handleTeeRiskParams);
 app.get('/api/tee-risk-params', handleTeeRiskParams);
 app.get('/risk-params', handleTeeRiskParams);
 
+/**
+ * GET /api/risk-proofs
+ * GET /risk-proofs
+ * Proxy vers https://tee.brokex.trade/risk-proofs
+ */
+const handleTeeRiskProofs = async (req, res) => {
+    try {
+        const response = await fetch('https://tee.brokex.trade/risk-proofs');
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (err) {
+        console.error('[API] Error fetching TEE risk-proofs:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+app.get('/api/risk-proofs', handleTeeRiskProofs);
+app.get('/api/tee-risk-proofs', handleTeeRiskProofs);
+app.get('/risk-proofs', handleTeeRiskProofs);
+
+
 
 /**
  * POST /api/faucet
@@ -792,8 +820,9 @@ async function main() {
         console.error('[Backend] ChartSync error:', err.message);
     });
 
-    // 4. Start WSS price watching (FTSO v2) and automated trade execution engine
-    watchFeedPrice(process.env.GOLD_FEED_ID, 2000, async (priceData) => {
+    // 4. Start WSS price watching for all assets (FTSO v2: Gold, XRP, etc.) and automated trade execution engine
+    const { watchAllFeeds } = require('./service/wss');
+    watchAllFeeds(2000, async (priceData) => {
         await evaluateAndExecuteTrades(priceData);
     });
 

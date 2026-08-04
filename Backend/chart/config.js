@@ -3,7 +3,8 @@ const path = require('path');
 
 module.exports = {
   symbols: [
-    process.env.PYTH_GOLD_SYMBOL || "Metal.XAU/USD"
+    process.env.PYTH_GOLD_SYMBOL || "Metal.XAU/USD",
+    process.env.PYTH_XRP_SYMBOL || "Crypto.XRP/USD"
   ],
 
   pythFeedId: process.env.PYTH_GOLD_FEED_ID || "0x765d2ba906dbc32ca17cc11f5310a4386b00731867d60e4144d9f8e5ee5d5060",

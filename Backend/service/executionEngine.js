@@ -53,6 +53,7 @@ let isProcessingExecution = false;
 
 /**
  * Generates EIP-191 signed Risk Proof for BrokexCore using the configured Wallet (teeSigner).
+ * Interroge l'enclave TEE (/risk-params) pour utiliser dynamiquement les valeurs de GOLD ou XRP.
  * @param {string} assetHash 
  * @returns {Promise<Object>} Formatted RiskProof struct
  */
@@ -60,13 +61,87 @@ async function fetchTeeRiskProof(assetHash) {
     try {
         const { wallet } = getWalletAndContract();
 
-        const timestamp = Math.floor(Date.now() / 1000);
-        const maxOILong = ethers.parseUnits("10000000", 6);
-        const maxOIShort = ethers.parseUnits("10000000", 6);
-        const spreadLong = 10;  // 0.001%
-        const spreadShort = 10; // 0.001%
+        const targetAssetHash = (assetHash || process.env.GOLD_ASSET_HASH || process.env.GOLD_FEED_ID).toLowerCase();
 
-        const targetAssetHash = assetHash || process.env.GOLD_FEED_ID;
+        // 1. Essayer de récupérer le RiskProof directement depuis l'enclave TEE (/risk-proofs)
+        try {
+            const riskProofsUrl = 'https://tee.brokex.trade/risk-proofs';
+            const res = await fetch(riskProofsUrl);
+            if (res.ok) {
+                const proofsData = await res.json();
+                let matchingProof = null;
+
+                for (const key of Object.keys(proofsData)) {
+                    const item = proofsData[key];
+                    if (!item) continue;
+
+                    // Convertir le tableau d'octets assetHash (uint8 array) en hex string si besoin
+                    let itemHashHex = '';
+                    if (Array.isArray(item.assetHash)) {
+                        itemHashHex = '0x' + Buffer.from(item.assetHash).toString('hex').toLowerCase();
+                    } else if (typeof item.assetHash === 'string') {
+                        itemHashHex = item.assetHash.toLowerCase();
+                    }
+
+                    if (itemHashHex === targetAssetHash) {
+                        matchingProof = item;
+                        break;
+                    }
+                }
+
+                if (matchingProof) {
+                    const signatureHex = matchingProof.signature ? (
+                        matchingProof.signature.startsWith('0x') 
+                            ? matchingProof.signature 
+                            : '0x' + Buffer.from(matchingProof.signature, 'base64').toString('hex')
+                    ) : null;
+
+                    if (signatureHex) {
+                        return {
+                            assetHash: targetAssetHash,
+                            maxOILong: BigInt(matchingProof.maxOILong.toString()),
+                            maxOIShort: BigInt(matchingProof.maxOIShort.toString()),
+                            spreadLong: BigInt(matchingProof.spreadLong.toString()),
+                            spreadShort: BigInt(matchingProof.spreadShort.toString()),
+                            timestamp: BigInt(matchingProof.timestamp.toString()),
+                            sig: signatureHex
+                        };
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[ExecutionEngine] Live TEE /risk-proofs fetch failed, falling back to local signer:', e.message);
+        }
+
+        // 2. Fallback signer local si le TEE en direct n'est pas joignable
+        let maxOILong = ethers.parseUnits("37500000000", 6);
+        let maxOIShort = ethers.parseUnits("37500000000", 6);
+        let spreadLong = 30;  // 30 bps (0.30%)
+        let spreadShort = 30; // 30 bps (0.30%)
+        let timestamp = Math.floor(Date.now() / 1000);
+
+        try {
+            const riskParamsUrl = 'https://tee.brokex.trade/risk-params';
+            const res = await fetch(riskParamsUrl);
+            if (res.ok) {
+                const params = await res.json();
+                let assetData = null;
+                for (const key of Object.keys(params)) {
+                    if (params[key] && params[key].assetHash && params[key].assetHash.toLowerCase() === targetAssetHash) {
+                        assetData = params[key];
+                        break;
+                    }
+                }
+
+                if (assetData) {
+                    if (assetData.maxOILong) maxOILong = BigInt(assetData.maxOILong.toString());
+                    if (assetData.maxOIShort) maxOIShort = BigInt(assetData.maxOIShort.toString());
+                    if (assetData.spreadLongBps !== undefined) spreadLong = Number(assetData.spreadLongBps);
+                    if (assetData.spreadShortBps !== undefined) spreadShort = Number(assetData.spreadShortBps);
+                    if (assetData.timestamp) timestamp = Number(assetData.timestamp);
+                }
+            }
+        } catch (e) {}
 
         const hash = ethers.keccak256(
             ethers.AbiCoder.defaultAbiCoder().encode(
@@ -110,6 +185,30 @@ async function evaluateAndExecuteTrades(priceData) {
             return;
         }
 
+        // Déterminer les hashes/feedIds correspondants au prix reçu (GOLD ou XRP)
+        const incomingFeedId = (priceData.feedId || '').toLowerCase();
+        const incomingSymbol = (priceData.symbol || '').toLowerCase();
+
+        // Récupérer les identifiants d'actif configurés pour filtrer les trades de la DB
+        let targetAssetHash = null;
+        if (incomingSymbol.includes('xrp') || incomingFeedId.includes('585250')) {
+            targetAssetHash = (process.env.XRP_ASSET_HASH || process.env.XRP_FEED_ID || '').toLowerCase();
+        } else {
+            targetAssetHash = (process.env.GOLD_ASSET_HASH || process.env.GOLD_FEED_ID || '').toLowerCase();
+        }
+
+        // 1. Filtrer d'abord la liste des trades de la DB pour ne garder QUE l'actif du prix reçu
+        const assetTrades = activeTrades.filter(t => {
+            if (!t.assetHash) return true; // Fallback if not specified
+            const tHash = t.assetHash.toLowerCase();
+            return tHash === targetAssetHash || tHash.includes(incomingFeedId) || targetAssetHash.includes(tHash);
+        });
+
+        if (assetTrades.length === 0) {
+            isProcessingExecution = false;
+            return;
+        }
+
         // Convert FTSO price (decimals = 3) to Smart Contract 6-decimals format (1e6)
         const currentPriceBig = normalizeToContractPrice(priceData.value, priceData.decimals);
 
@@ -117,7 +216,7 @@ async function evaluateAndExecuteTrades(priceData) {
         const executionReasons = [];
         const riskProofs = [];
 
-        for (const t of activeTrades) {
+        for (const t of assetTrades) {
             const tradeId = t.id.toString();
             const state = Number(t.state);
             const direction = Number(t.direction);

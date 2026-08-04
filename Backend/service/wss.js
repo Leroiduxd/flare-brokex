@@ -4,34 +4,59 @@ const path = require('path');
 const EventEmitter = require('events');
 
 const priceEmitter = new EventEmitter();
-let latestPriceData = null;
+const latestPricesMap = new Map();
 
 // Import FTSO v2 ABI from abi/ folder
 const ftsoAbi = require(path.join(__dirname, '../abi/FtsoV2.json'));
 
-// Strict usage of .env variables
 const provider = new ethers.JsonRpcProvider(process.env.COSTON2_RPC_URL);
 const ftsoContract = new ethers.Contract(process.env.FTSO_V2_ADDRESS, ftsoAbi, provider);
 
+// Map of configured assets
+function getConfiguredFeeds() {
+    const feeds = [];
+    if (process.env.GOLD_FEED_ID) {
+        feeds.push({
+            symbol: process.env.PYTH_GOLD_SYMBOL || 'Metal.XAU/USD',
+            feedId: process.env.GOLD_FEED_ID,
+            assetHash: process.env.GOLD_ASSET_HASH
+        });
+    }
+    if (process.env.XRP_FEED_ID) {
+        feeds.push({
+            symbol: process.env.PYTH_XRP_SYMBOL || 'Crypto.XRP/USD',
+            feedId: process.env.XRP_FEED_ID,
+            assetHash: process.env.XRP_ASSET_HASH
+        });
+    }
+    return feeds;
+}
+
 /**
- * Fetches feed price via FTSO v2 (100% based on process.env)
- * @param {string} feedId - Feed ID in bytes21 format (default process.env.GOLD_FEED_ID)
+ * Fetches feed price via FTSO v2 for a given feedId
  */
-async function getFeedPrice(feedId = process.env.GOLD_FEED_ID) {
+async function getFeedPrice(feedId = process.env.GOLD_FEED_ID, symbolOverride = null) {
     try {
         const [value, decimals, timestamp] = await ftsoContract.getFeedById(feedId);
         const priceUSD = Number(value) / Math.pow(10, Number(decimals));
 
+        let symbol = symbolOverride;
+        if (!symbol) {
+            const found = getConfiguredFeeds().find(f => f.feedId.toLowerCase() === feedId.toLowerCase());
+            symbol = found ? found.symbol : 'Metal.XAU/USD';
+        }
+
         const data = {
             feedId,
-            symbol: 'XAU/USD',
+            symbol,
             value: value.toString(),
             decimals: Number(decimals),
             timestamp: Number(timestamp),
             priceUSD
         };
 
-        latestPriceData = data;
+        latestPricesMap.set(feedId.toLowerCase(), data);
+        latestPricesMap.set(symbol.toLowerCase(), data);
         priceEmitter.emit('priceUpdate', data);
 
         return data;
@@ -42,40 +67,54 @@ async function getFeedPrice(feedId = process.env.GOLD_FEED_ID) {
 }
 
 /**
- * Continuous price monitoring / polling
- * @param {string} feedId - Feed ID
- * @param {number} intervalMs - Polling interval in ms
- * @param {function} callback - Callback function executed with updated price data
+ * Surveillance continue de tous les flux configurés (GOLD, XRP, etc.)
  */
-function watchFeedPrice(feedId = process.env.GOLD_FEED_ID, intervalMs = 2000, callback) {
-    console.log(`[WSS/FTSO Service] Starting monitoring (Interval: ${intervalMs}ms)...`);
+function watchAllFeeds(intervalMs = 2000, callback) {
+    const feeds = getConfiguredFeeds();
+    console.log(`[WSS/FTSO Service] Starting monitoring for ${feeds.length} asset(s) (Interval: ${intervalMs}ms)...`);
 
-    // Initial fetch
-    getFeedPrice(feedId).then(data => {
-        if (callback && typeof callback === 'function') callback(data);
-    }).catch(() => {});
+    // Dynamic initial fetches
+    for (const feed of feeds) {
+        getFeedPrice(feed.feedId, feed.symbol).then(data => {
+            if (callback && typeof callback === 'function') callback(data);
+        }).catch(() => {});
+    }
 
     const interval = setInterval(async () => {
-        try {
-            const data = await getFeedPrice(feedId);
-            if (callback && typeof callback === 'function') {
-                callback(data);
+        for (const feed of feeds) {
+            try {
+                const data = await getFeedPrice(feed.feedId, feed.symbol);
+                if (callback && typeof callback === 'function') {
+                    callback(data);
+                }
+            } catch (err) {
+                // Handled inside getFeedPrice
             }
-        } catch (err) {
-            // Errors are handled inside getFeedPrice
         }
     }, intervalMs);
 
     return () => clearInterval(interval);
 }
 
-function getLatestPriceData() {
-    return latestPriceData;
+function watchFeedPrice(feedId = process.env.GOLD_FEED_ID, intervalMs = 2000, callback) {
+    return watchAllFeeds(intervalMs, callback);
+}
+
+function getLatestPriceData(feedIdOrSymbol = null) {
+    if (!feedIdOrSymbol) {
+        // Return latest GOLD or first entry by default
+        return latestPricesMap.get(process.env.GOLD_FEED_ID?.toLowerCase()) || 
+               latestPricesMap.get('metal.xau/usd') || 
+               Array.from(latestPricesMap.values())[0] || null;
+    }
+    return latestPricesMap.get(feedIdOrSymbol.toLowerCase()) || null;
 }
 
 module.exports = {
     getFeedPrice,
     watchFeedPrice,
+    watchAllFeeds,
     priceEmitter,
-    getLatestPriceData
+    getLatestPriceData,
+    getConfiguredFeeds
 };
