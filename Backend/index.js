@@ -12,7 +12,7 @@ const {
     fetchAndSaveTradeById
 } = require('./service/tradeService');
 const { listenTradeEvents } = require('./service/listenTradeEvents');
-const { watchFeedPrice, priceEmitter, getLatestPriceData } = require('./service/wss');
+const { watchFeedPrice, watchAllFeeds, priceEmitter, getLatestPriceData } = require('./service/wss');
 const { evaluateAndExecuteTrades } = require('./service/executionEngine');
 const chartSyncService = require('./chart/chartSyncService');
 const chartConfig = require('./chart/config');
@@ -341,9 +341,12 @@ app.get('/api/trades/range', async (req, res) => {
  * Returns detailed info for a specific trade by ID.
  * Checks SQLite DB first; if missing, falls back to fetching from blockchain.
  */
-app.get('/api/trades/:tradeId', async (req, res) => {
+app.get('/api/trades/:tradeId', async (req, res, next) => {
     try {
         const { tradeId } = req.params;
+        if (!/^\d+$/.test(tradeId)) {
+            return next();
+        }
         let trade = await getTradeByIdFromDb(tradeId);
 
         if (!trade) {
@@ -594,6 +597,7 @@ app.get('/risk-proofs', handleTeeRiskProofs);
 
 
 
+
 /**
  * POST /api/faucet
  * GET /api/faucet?address=0x...
@@ -821,7 +825,6 @@ async function main() {
     });
 
     // 4. Start WSS price watching for all assets (FTSO v2: Gold, XRP, etc.) and automated trade execution engine
-    const { watchAllFeeds } = require('./service/wss');
     watchAllFeeds(2000, async (priceData) => {
         await evaluateAndExecuteTrades(priceData);
     });

@@ -1,105 +1,72 @@
-const hre = require("hardhat");
+const { ethers } = require("ethers");
+const fs = require("fs");
+require("dotenv").config();
 
 async function main() {
-  const [deployer] = await hre.ethers.getSigners();
-  console.log("==================================================");
-  console.log("    PLACING 4 SPECIFIC LIMIT & STOP ORDERS");
-  console.log("==================================================");
-  console.log("Deployer Address:", deployer.address);
+  const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
-  const coreAddress = "0x8E8D9a9CeF5da78F92152CA7E3a193e0fdE636b3";
+  const coreAddress = process.env.BROKEX_CORE_ADDRESS;
   const usdcAddress = "0xfDA686186510208C4E91028Fed671Dd9c35111d3";
 
-  const core = await hre.ethers.getContractAt("BrokexCore", coreAddress);
-  const usdc = await hre.ethers.getContractAt("MockUSDC", usdcAddress);
+  // ABI du Smart Contract BrokexCore
+  const coreArtifact = JSON.parse(fs.readFileSync("./artifacts/contracts/BrokexCore.sol/BrokexCore.json"));
+  const core = new ethers.Contract(coreAddress, coreArtifact.abi, wallet);
 
-  const assetHash = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("GOLD/USD"));
+  // ABI ERC20 minimal pour le mock USDC
+  const usdcAbi = ["function approve(address spender, uint256 amount) external returns (bool)"];
+  const usdc = new ethers.Contract(usdcAddress, usdcAbi, wallet);
 
-  // 1. Approve USDC pour BrokexCore (10,000 USDC)
-  const approveAmount = hre.ethers.parseUnits("10000", 6);
-  const txApprove = await usdc.approve(coreAddress, approveAmount);
-  await txApprove.wait();
-  console.log("1. Approved USDC for BrokexCore.");
+  const xrpHash = "0xfe136bfb1b369cfb823e20ecbc952f4ebac08b535d58fbc83b0f5b25208f0298";
+  
+  const collateral = ethers.parseUnits("10", 6); // 10 USDC (6 décimales)
+  const leverage = 5n;                           // Levier 5x
 
-  // Constantes
-  const DIR_SHORT  = 0;
-  const DIR_LONG   = 1;
+  // Constantes du protocole Brokex
+  const DIR_SHORT = 0;
+  const DIR_LONG  = 1;
   const ORDER_LIMIT = 1;
   const ORDER_STOP  = 2;
 
-  const collateral = hre.ethers.parseUnits("50", 6); // 50 USDC collateral
-  const leverage   = 10;                              // 10x leverage
-  const slPrice    = 0;
-  const tpPrice    = 0;
+  // 1. Approbation du collateral USDC (40 USDC pour 4 ordres)
+  console.log("1. Approbation des USDC pour BrokexCore...");
+  const txApp = await usdc.approve(coreAddress, collateral * 4n);
+  await txApp.wait();
+  console.log("   --> Approbation confirmée !");
 
-  const ordersToPlace = [
-    {
-      name: "Limit LONG @ $5000",
-      direction: DIR_LONG,
-      orderType: ORDER_LIMIT,
-      targetPrice: hre.ethers.parseUnits("5000", 6)
-    },
-    {
-      name: "Limit SHORT @ $4000",
-      direction: DIR_SHORT,
-      orderType: ORDER_LIMIT,
-      targetPrice: hre.ethers.parseUnits("4000", 6)
-    },
-    {
-      name: "Stop LONG @ $4000",
-      direction: DIR_LONG,
-      orderType: ORDER_STOP,
-      targetPrice: hre.ethers.parseUnits("4000", 6)
-    },
-    {
-      name: "Stop SHORT @ $5000",
-      direction: DIR_SHORT,
-      orderType: ORDER_STOP,
-      targetPrice: hre.ethers.parseUnits("5000", 6)
-    }
+  // Définition des 4 ordres souhaités
+  const orders = [
+    { name: "LIMIT LONG @ $2.00",  dir: DIR_LONG,  type: ORDER_LIMIT, price: 2000000n },
+    { name: "LIMIT SHORT @ $1.00", dir: DIR_SHORT, type: ORDER_LIMIT, price: 1000000n },
+    { name: "STOP LONG @ $1.00",   dir: DIR_LONG,  type: ORDER_STOP,  price: 1000000n },
+    { name: "STOP SHORT @ $2.00",  dir: DIR_SHORT, type: ORDER_STOP,  price: 2000000n }
   ];
 
-  const placedOrders = [];
-
-  for (const o of ordersToPlace) {
-    try {
-      const tx = await core.createLimitOrStopOrder(
-        assetHash,
-        o.direction,
-        o.orderType,
-        o.targetPrice,
-        collateral,
-        leverage,
-        slPrice,
-        tpPrice
-      );
-      const receipt = await tx.wait();
-      
-      // Filter TradeEvent to get tradeId
-      let tradeId = null;
-      for (const log of receipt.logs) {
-        try {
-          const parsed = core.interface.parseLog(log);
-          if (parsed && parsed.name === 'TradeEvent') {
-            tradeId = parsed.args.tradeId.toString();
-          }
-        } catch (e) {}
-      }
-
-      console.log(`[PLACED] ${o.name} | Trade ID: ${tradeId || 'N/A'} | Tx: ${receipt.hash}`);
-      placedOrders.push({ name: o.name, tradeId, hash: receipt.hash });
-    } catch (err) {
-      console.error(`[ERROR] ${o.name}:`, err.reason || err.message);
-    }
+  // 2. Création des ordres sur le smart contract
+  console.log("\n2. Envoi des 4 ordres sur XRP...");
+  for (const o of orders) {
+    console.log(`   Placements de : ${o.name}...`);
+    const tx = await core.createLimitOrStopOrder(
+      xrpHash,    // assetHash
+      o.dir,      // direction (0: SHORT, 1: LONG)
+      o.type,     // orderType (1: LIMIT, 2: STOP)
+      o.price,    // targetPrice (en 1e6)
+      collateral, // collateral (USDC)
+      leverage,   // levier
+      0,          // stopLoss (0 si pas défini)
+      0           // takeProfit (0 si pas défini)
+    );
+    console.log(`   Transaction envoyée (${o.name}):`, tx.hash);
+    await tx.wait();
+    console.log(`   --> ${o.name} placé avec succès !`);
   }
 
+  console.log("\n==================================================");
+  console.log("    LES 4 ORDRES ONT ÉTÉ CRÉÉS SUR LA BLOCKCHAIN  ");
   console.log("==================================================");
-  console.log("          FINISHED PLACING 4 ORDERS");
-  console.log("==================================================");
-  console.log("Placed Orders:", placedOrders);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
+main().catch(err => {
+  console.error("Erreur lors de la création des ordres :", err);
+  process.exit(1);
 });

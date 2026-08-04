@@ -11,7 +11,9 @@ Ce guide contient **chaque commande exacte à copier-coller** pour transférer, 
 - **Port du Proxy TEE** : `6674`
 - **Réseau** : Flare Coston2 Testnet (Chain ID: `114`)
 - **RPC URL** : `https://coston2-api.flare.network/ext/C/rpc`
-- **BrokexCore Contract** : `0xE9B049FDb273195D6078A58247bA9f05cd8258C0`
+- **BrokexCore Contract** : `0x5620dA2B418577b94a74B121eD61B5B84962AC93`
+- **BrokexVault Contract** : `0xC73dab4Db123cC6e206d65f8DE6590dd0531a1D3`
+- **BrokexLens Contract** : `0x9565CCDaEF44430c2B099455ff028712F94E8859`
 - **Clé Privée Nœud TEE** : `0xe12f9b03327a875c2d5bf9b40a75cd2effeed46ea508ee595c6bc708c386da8c`
 - **Adresse Nœud TEE** : `0xEDa28D031678F21153924510fC66F665471c4c7f`
 - **Extension ID** : `65879` (`0x0000000000000000000000000000000000000000000000000000000000010157`)
@@ -76,7 +78,10 @@ cat << 'EOF' > config/extension.env
 PRIVATE_KEY=0xe12f9b03327a875c2d5bf9b40a75cd2effeed46ea508ee595c6bc708c386da8c
 
 # Adresse du contrat BrokexCore sur Coston2
-INSTRUCTION_SENDER=0xE9B049FDb273195D6078A58247bA9f05cd8258C0
+INSTRUCTION_SENDER=0x5620dA2B418577b94a74B121eD61B5B84962AC93
+BROKEX_CORE_ADDRESS=0x5620dA2B418577b94a74B121eD61B5B84962AC93
+BROKEX_VAULT_ADDRESS=0xC73dab4Db123cC6e206d65f8DE6590dd0531a1D3
+BROKEX_LENS_ADDRESS=0x9565CCDaEF44430c2B099455ff028712F94E8859
 
 # Extension ID lié à BrokexCore
 EXTENSION_ID=0x0000000000000000000000000000000000000000000000000000000000010157
@@ -168,3 +173,35 @@ cast send --rpc-url https://coston2-api.flare.network/ext/C/rpc \
 ```
 
 Dans les logs de Docker (`docker logs -f fce-extension-scaffold-extension-tee-1`), vous verrez le TEE intercepter l'évènement on-chain, calculer les spreads et renvoyer la preuve de risque `RiskProof` signée ECDSA ! 🛡️⚡
+
+---
+
+## 📜 10. HISTORIQUE & DÉTAIL DES ACTIONS RÉALISÉES SUR LE VPS (`51.178.43.25`)
+
+Voici le récapitulatif complet de toutes les étapes de configuration et de déploiement exécutées sur le VPS Ubuntu 22.04 LTS :
+
+### 🛠️ 1. Connexion SSH & Environnement Système
+- **Vérification de l'accès SSH** : Validation des accès utilisateur `ubuntu` avec privilèges `sudo`.
+- **Analyse des Ressources** : Vérification du système (Ubuntu 22.04 LTS, 7.6 Go RAM, 46 Go d'espace disque disponible, Uptime ~7 jours).
+
+### 📁 2. Transfert & Synchronisation du Code
+- **Copie des fichiers locaux vers le VPS** : Transfert par SCP de l'ensemble du projet Go local `/Users/khalil/Desktop/Brokex X Flare/TEE` vers le dossier `/home/ubuntu/fce-extension-scaffold/` du VPS (fichiers Go, `pkg/types`, `internal/risk`, `internal/extension`, etc.).
+
+### 🐳 3. Recompilation & Gestion des Conteneurs Docker
+- **Nettoyage des conteneurs isolés** : Suppression des conteneurs en conflit/arrêtés.
+- **Recompilation Multi-stage Docker** : Exécution de `docker compose -f docker-compose.yaml -f docker-compose.coston2.yaml up -d --build`.
+- **Démarrage des 3 Services** :
+  1. `fce-extension-scaffold-extension-tee-1` (Binaire Go TEE compiled avec le Risk Engine).
+  2. `fce-extension-scaffold-ext-proxy-1` (Proxy Flare TEE en écoute sur les ports `6673` et `6674`).
+  3. `fce-extension-scaffold-redis-1` (Base Redis locale).
+
+### 🔑 4. Ré-initialisation de la Policy TEE & Signature Cryptographique
+- **Vérification des logs** : Confirmation du lancement du routeur TEE (`docker logs fce-extension-scaffold-extension-tee-1`).
+- **Initialisation de la Policy** : Ré-initialisation réussie de la `SIGNING_POLICY` et attribution du `lastSigningPolicyId` pour autoriser la signature ECDSA des preuves de risque.
+
+### 🌐 5. Exposition Publique & Configuration NGINX / SSL
+- **Reverse Proxy NGINX** : Le port interne `6674` du Proxy TEE est redirigé via NGINX sur la machine.
+- **Certificat SSL Certbot (HTTPS)** : Configuration du sous-domaine `tee.brokex.trade`.
+- **Validation HTTP 200 OK** : Vérification de l'endpoint **https://tee.brokex.trade/info** renvoyant la clé publique TEE (`publicKey`), l'Attestation, le `chainId: 114` et l'`extensionId: 0x...10155`.
+
+

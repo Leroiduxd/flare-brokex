@@ -1,0 +1,163 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/Users/khalil/Desktop/Brokex X Flare/Smart contract/contracts/BrokexCore.sol": {
+      "lastModificationDate": 1785588662132,
+      "contentHash": "ca951826381ccdf574c4f86368b906d9",
+      "sourceName": "contracts/BrokexCore.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "BrokexCore",
+        "IBrokexVault",
+        "IERC20",
+        "IFtsoV2",
+        "ITeeExtensionRegistry",
+        "ITeeMachineRegistry"
+      ]
+    },
+    "/Users/khalil/Desktop/Brokex X Flare/Smart contract/contracts/BrokexLens.sol": {
+      "lastModificationDate": 1785595080205,
+      "contentHash": "bcecc02c8b5a0daccbf2bd48a6a46c1a",
+      "sourceName": "contracts/BrokexLens.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "BrokexLens",
+        "IBrokexCore",
+        "IBrokexVault",
+        "IERC20"
+      ]
+    },
+    "/Users/khalil/Desktop/Brokex X Flare/Smart contract/contracts/BrokexVault.sol": {
+      "lastModificationDate": 1785588662132,
+      "contentHash": "53c1a8c8351608b7c37cb63122928b88",
+      "sourceName": "contracts/BrokexVault.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "BrokexVault",
+        "IBrokexCore",
+        "IERC20"
+      ]
+    },
+    "/Users/khalil/Desktop/Brokex X Flare/Smart contract/contracts/MockUSDC.sol": {
+      "lastModificationDate": 1785588662133,
+      "contentHash": "197ee54b5bc41857401be0d00231a508",
+      "sourceName": "contracts/MockUSDC.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "MockUSDC"
+      ]
+    }
+  }
+}

@@ -64,6 +64,11 @@ db.serialize(() => {
             openInterestShort TEXT DEFAULT '0',
             avgEntryPriceLong TEXT DEFAULT '0',
             avgEntryPriceShort TEXT DEFAULT '0',
+            goldOpenInterestLong TEXT DEFAULT '0',
+            goldOpenInterestShort TEXT DEFAULT '0',
+            xrpOpenInterestLong TEXT DEFAULT '0',
+            xrpOpenInterestShort TEXT DEFAULT '0',
+            totalBorrowFees TEXT DEFAULT '0',
             lpTokenPrice TEXT DEFAULT '1000000'
         )
     `, (err) => {
@@ -79,6 +84,11 @@ db.serialize(() => {
     db.run(`ALTER TABLE vault_metrics ADD COLUMN openInterestShort TEXT DEFAULT '0'`, () => {});
     db.run(`ALTER TABLE vault_metrics ADD COLUMN avgEntryPriceLong TEXT DEFAULT '0'`, () => {});
     db.run(`ALTER TABLE vault_metrics ADD COLUMN avgEntryPriceShort TEXT DEFAULT '0'`, () => {});
+    db.run(`ALTER TABLE vault_metrics ADD COLUMN goldOpenInterestLong TEXT DEFAULT '0'`, () => {});
+    db.run(`ALTER TABLE vault_metrics ADD COLUMN goldOpenInterestShort TEXT DEFAULT '0'`, () => {});
+    db.run(`ALTER TABLE vault_metrics ADD COLUMN xrpOpenInterestLong TEXT DEFAULT '0'`, () => {});
+    db.run(`ALTER TABLE vault_metrics ADD COLUMN xrpOpenInterestShort TEXT DEFAULT '0'`, () => {});
+    db.run(`ALTER TABLE vault_metrics ADD COLUMN totalBorrowFees TEXT DEFAULT '0'`, () => {});
     db.run(`ALTER TABLE vault_metrics ADD COLUMN lpTokenPrice TEXT DEFAULT '1000000'`, () => {});
 
     // Initialization of faucet_claims table

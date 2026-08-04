@@ -6,6 +6,8 @@ services:
       - ./config/proxy/extension_proxy.coston2.docker.toml:/app/config/config.toml:ro
 
   extension-tee:
+    ports:
+      - "127.0.0.1:7702:7702"
     environment:
       - CHAIN_URL=${CHAIN_URL:-https://coston2-api.flare.network/ext/C/rpc}
       # Coston2 chain id. The node binds every signature to this value; it must

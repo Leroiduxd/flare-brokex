@@ -49,6 +49,15 @@ async function batchExecute(tradeIds, reasons, riskProofs, overrides = {}) {
 
     console.log(`[BatchExecuteService] Executing batch for ${tradeIds.length} trade(s)...`);
 
+    try {
+        await coreContract.batchExecute.staticCall(tradeIds, reasons, riskProofs, overrides);
+    } catch (callErr) {
+        console.error(`[BatchExecuteService] staticCall Simulation Failed! Revert reason:`, callErr.reason || callErr.message);
+        if (callErr.data) {
+            console.error(`[BatchExecuteService] Revert data:`, callErr.data);
+        }
+    }
+
     const tx = await coreContract.batchExecute(tradeIds, reasons, riskProofs, overrides);
     console.log(`[BatchExecuteService] Transaction submitted. Hash: ${tx.hash}`);
 

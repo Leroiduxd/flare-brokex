@@ -1,0 +1,37 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "IBrokexCore",
+  "sourceName": "contracts/BrokexVault.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "totalLockedCapital",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "verifyAndComputeUnrealizedPnL",
+      "outputs": [
+        {
+          "internalType": "int256",
+          "name": "totalUnrealizedPnL",
+          "type": "int256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

@@ -1,6 +1,9 @@
 package decoder
 
-// DataKind indicates whether the data represents a message or a result.
+import (
+	teetypes "github.com/flare-foundation/tee-node/pkg/types"
+)
+
 type DataKind string
 
 const (
@@ -8,7 +11,6 @@ const (
 	KindResult  DataKind = "result"
 )
 
-// Decoder decodes raw bytes into a structured value.
 type Decoder interface {
-	Decode(data []byte) (any, error)
+	Decode(message []byte) (teetypes.ActionData, error)
 }

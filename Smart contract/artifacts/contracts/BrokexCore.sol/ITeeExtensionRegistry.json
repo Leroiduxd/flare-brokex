@@ -1,0 +1,99 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ITeeExtensionRegistry",
+  "sourceName": "contracts/BrokexCore.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_extensionId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTeeExtensionInstructionsSender",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "nextPublicExtensionId",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address[]",
+          "name": "_teeIds",
+          "type": "address[]"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "opType",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "opCommand",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "message",
+              "type": "bytes"
+            },
+            {
+              "internalType": "address[]",
+              "name": "cosigners",
+              "type": "address[]"
+            },
+            {
+              "internalType": "uint64",
+              "name": "cosignersThreshold",
+              "type": "uint64"
+            },
+            {
+              "internalType": "address",
+              "name": "claimBackAddress",
+              "type": "address"
+            }
+          ],
+          "internalType": "struct ITeeExtensionRegistry.TeeInstructionParams",
+          "name": "_instructionParams",
+          "type": "tuple"
+        }
+      ],
+      "name": "sendInstructions",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_instructionId",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

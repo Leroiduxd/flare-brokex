@@ -38,7 +38,7 @@ const TARGET_CONTRACT_DECIMALS = 6;
  */
 function normalizeToContractPrice(rawValue, decimals) {
     const valBig = BigInt(rawValue.toString());
-    const dec = Number(decimals || 3);
+    const dec = Number(decimals !== undefined && decimals !== null ? decimals : 3);
 
     if (dec < TARGET_CONTRACT_DECIMALS) {
         return valBig * (10n ** BigInt(TARGET_CONTRACT_DECIMALS - dec));
@@ -90,22 +90,30 @@ async function fetchTeeRiskProof(assetHash) {
                 }
 
                 if (matchingProof) {
-                    const signatureHex = matchingProof.signature ? (
-                        matchingProof.signature.startsWith('0x') 
-                            ? matchingProof.signature 
-                            : '0x' + Buffer.from(matchingProof.signature, 'base64').toString('hex')
-                    ) : null;
+                    const now = Math.floor(Date.now() / 1000);
+                    const proofTime = Number(matchingProof.timestamp || 0);
+                    
+                    // Only use matchingProof if it is fresh (less than 50 seconds old)
+                    if (now - proofTime < 50) {
+                        const signatureHex = matchingProof.signature ? (
+                            matchingProof.signature.startsWith('0x') 
+                                ? matchingProof.signature 
+                                : '0x' + Buffer.from(matchingProof.signature, 'base64').toString('hex')
+                        ) : null;
 
-                    if (signatureHex) {
-                        return {
-                            assetHash: targetAssetHash,
-                            maxOILong: BigInt(matchingProof.maxOILong.toString()),
-                            maxOIShort: BigInt(matchingProof.maxOIShort.toString()),
-                            spreadLong: BigInt(matchingProof.spreadLong.toString()),
-                            spreadShort: BigInt(matchingProof.spreadShort.toString()),
-                            timestamp: BigInt(matchingProof.timestamp.toString()),
-                            sig: signatureHex
-                        };
+                        if (signatureHex) {
+                            return {
+                                assetHash: targetAssetHash,
+                                maxOILong: BigInt(matchingProof.maxOILong.toString()),
+                                maxOIShort: BigInt(matchingProof.maxOIShort.toString()),
+                                spreadLong: BigInt(matchingProof.spreadLong.toString()),
+                                spreadShort: BigInt(matchingProof.spreadShort.toString()),
+                                timestamp: BigInt(matchingProof.timestamp.toString()),
+                                sig: signatureHex
+                            };
+                        }
+                    } else {
+                        console.warn(`[ExecutionEngine] Remote TEE proof for ${targetAssetHash} is expired (age: ${now - proofTime}s), signing fresh proof locally...`);
                     }
                 }
             }
@@ -191,17 +199,20 @@ async function evaluateAndExecuteTrades(priceData) {
 
         // Récupérer les identifiants d'actif configurés pour filtrer les trades de la DB
         let targetAssetHash = null;
+        let targetAssetHashAlt = null;
+
         if (incomingSymbol.includes('xrp') || incomingFeedId.includes('585250')) {
             targetAssetHash = (process.env.XRP_ASSET_HASH || process.env.XRP_FEED_ID || '').toLowerCase();
+            targetAssetHashAlt = '0xfe136bfb1b369cfb823e20ecbc952f4ebac08b535d58fbc83b0f5b25208f0298'; // zeroPad alternative
         } else {
             targetAssetHash = (process.env.GOLD_ASSET_HASH || process.env.GOLD_FEED_ID || '').toLowerCase();
         }
 
-        // 1. Filtrer d'abord la liste des trades de la DB pour ne garder QUE l'actif du prix reçu
+        // 1. Filtrer d'abord la liste des trades de la DB pour ne garder STRICTEMENT QUE l'actif du prix reçu
         const assetTrades = activeTrades.filter(t => {
-            if (!t.assetHash) return true; // Fallback if not specified
+            if (!t.assetHash) return false; // Ne pas exécuter si le trade n'a pas d'assetHash
             const tHash = t.assetHash.toLowerCase();
-            return tHash === targetAssetHash || tHash.includes(incomingFeedId) || targetAssetHash.includes(tHash);
+            return tHash === targetAssetHash || (targetAssetHashAlt && tHash === targetAssetHashAlt);
         });
 
         if (assetTrades.length === 0) {

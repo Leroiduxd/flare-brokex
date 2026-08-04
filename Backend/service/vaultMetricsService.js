@@ -78,68 +78,118 @@ async function fetchAndSaveVaultMetrics() {
         let avgEntryPriceLong = 0n;
         let avgEntryPriceShort = 0n;
 
-        try {
-            let assetHash = (process.env.GOLD_ASSET_HASH || '').split('#')[0].trim();
-            if (!assetHash) {
-                assetHash = (process.env.GOLD_FEED_ID || '').split('#')[0].trim();
+        let goldOpenInterestLong = 0n;
+        let goldOpenInterestShort = 0n;
+        let xrpOpenInterestLong = 0n;
+        let xrpOpenInterestShort = 0n;
+
+        const { getLatestPriceData, getFeedPrice } = require('./wss');
+        const { normalizeToContractPrice } = require('./executionEngine');
+
+        // Assets list to track
+        const assetsToTrack = [
+            {
+                key: 'GOLD',
+                hash: (process.env.GOLD_ASSET_HASH || '').split('#')[0].trim() || (process.env.GOLD_FEED_ID || '').split('#')[0].trim(),
+                feedId: process.env.GOLD_FEED_ID,
+                symbol: process.env.PYTH_GOLD_SYMBOL || 'Metal.XAU/USD'
+            },
+            {
+                key: 'XRP',
+                hash: '0xfe136bfb1b369cfb823e20ecbc952f4ebac08b535d58fbc83b0f5b25208f0298',
+                hashAlt: '0x0aa350274fca23e3884be19de980198b13f2ea293ea26921055ab6a20770c7f2',
+                feedId: process.env.XRP_FEED_ID,
+                symbol: process.env.PYTH_XRP_SYMBOL || 'Crypto.XRP/USD'
             }
+        ];
 
-            if (lensContract && assetHash) {
-                const snapshot = await lensContract.getAssetSnapshot(assetHash);
-                if (snapshot) {
-                    openInterestLong = BigInt(snapshot.openInterestLong !== undefined ? snapshot.openInterestLong : (snapshot[1] || '0'));
-                    openInterestShort = BigInt(snapshot.openInterestShort !== undefined ? snapshot.openInterestShort : (snapshot[2] || '0'));
-                    avgEntryPriceLong = BigInt(snapshot.avgEntryPriceLong !== undefined ? snapshot.avgEntryPriceLong : (snapshot[4] || '0'));
-                    avgEntryPriceShort = BigInt(snapshot.avgEntryPriceShort !== undefined ? snapshot.avgEntryPriceShort : (snapshot[5] || '0'));
-
-                    const { getLatestPriceData, getFeedPrice } = require('./wss');
-                    const { normalizeToContractPrice } = require('./executionEngine');
-                    let latestPriceObj = getLatestPriceData();
-
-                    if (!latestPriceObj || !latestPriceObj.value) {
-                        try {
-                            latestPriceObj = await getFeedPrice(process.env.GOLD_FEED_ID);
-                        } catch (e) {}
+        if (lensContract) {
+            for (const asset of assetsToTrack) {
+                try {
+                    let snapshot = null;
+                    if (asset.hash) {
+                        snapshot = await lensContract.getAssetSnapshot(asset.hash).catch(() => null);
+                    }
+                    if (!snapshot && asset.hashAlt) {
+                        snapshot = await lensContract.getAssetSnapshot(asset.hashAlt).catch(() => null);
                     }
 
-                    if (latestPriceObj && latestPriceObj.value) {
-                        const currentPriceBig = normalizeToContractPrice(latestPriceObj.value, latestPriceObj.decimals);
+                    if (snapshot) {
+                        const oiLong = BigInt(snapshot.openInterestLong !== undefined ? snapshot.openInterestLong : (snapshot[1] || '0'));
+                        const oiShort = BigInt(snapshot.openInterestShort !== undefined ? snapshot.openInterestShort : (snapshot[2] || '0'));
+                        const avgLong = BigInt(snapshot.avgEntryPriceLong !== undefined ? snapshot.avgEntryPriceLong : (snapshot[4] || '0'));
+                        const avgShort = BigInt(snapshot.avgEntryPriceShort !== undefined ? snapshot.avgEntryPriceShort : (snapshot[5] || '0'));
 
-                        // PnL Long = oiLong * (currentPrice - avgPriceLong) / avgPriceLong
-                        let pnlLong = 0n;
-                        if (openInterestLong > 0n && avgEntryPriceLong > 0n) {
-                            pnlLong = (openInterestLong * (currentPriceBig - avgEntryPriceLong)) / avgEntryPriceLong;
+                        if (asset.key === 'GOLD') {
+                            goldOpenInterestLong = oiLong;
+                            goldOpenInterestShort = oiShort;
+                        } else if (asset.key === 'XRP') {
+                            xrpOpenInterestLong = oiLong;
+                            xrpOpenInterestShort = oiShort;
                         }
 
-                        // PnL Short = oiShort * (avgPriceShort - currentPrice) / avgPriceShort
-                        let pnlShort = 0n;
-                        if (openInterestShort > 0n && avgEntryPriceShort > 0n) {
-                            pnlShort = (openInterestShort * (avgEntryPriceShort - currentPriceBig)) / avgEntryPriceShort;
+                        openInterestLong += oiLong;
+                        openInterestShort += oiShort;
+
+                        // Calculate PnL for this asset
+                        let latestPriceObj = getLatestPriceData(asset.symbol) || getLatestPriceData(asset.feedId);
+                        if (!latestPriceObj || !latestPriceObj.value) {
+                            try {
+                                latestPriceObj = await getFeedPrice(asset.feedId, asset.symbol);
+                            } catch (e) {}
                         }
 
-                        unrealizedPnL = pnlLong + pnlShort;
+                        if (latestPriceObj && latestPriceObj.value) {
+                            const currentPriceBig = normalizeToContractPrice(latestPriceObj.value, latestPriceObj.decimals);
+
+                            let pnlLong = 0n;
+                            if (oiLong > 0n && avgLong > 0n) {
+                                pnlLong = (oiLong * (currentPriceBig - avgLong)) / avgLong;
+                            }
+
+                            let pnlShort = 0n;
+                            if (oiShort > 0n && avgShort > 0n) {
+                                pnlShort = (oiShort * (avgShort - currentPriceBig)) / avgShort;
+                            }
+
+                            unrealizedPnL += (pnlLong + pnlShort);
+                        }
                     }
+                } catch (assetErr) {
+                    console.warn(`[VaultMetricsService] Error fetching snapshot for ${asset.key}:`, assetErr.message);
                 }
             }
-        } catch (pnlErr) {
-            console.warn('[VaultMetricsService] Error calculating unrealized PnL from on-chain snapshot:', pnlErr.message);
         }
 
+        // Fetch cumulative total borrow fees from trades DB
+        let totalBorrowFees = 0n;
+        try {
+            await new Promise((res) => {
+                db.all(`SELECT borrowFee FROM trades`, [], (err, rows) => {
+                    if (!err && rows) {
+                        for (const r of rows) {
+                            if (r.borrowFee) {
+                                totalBorrowFees += BigInt(r.borrowFee.toString());
+                            }
+                        }
+                    }
+                    res();
+                });
+            });
+        } catch (e) {}
+
+        let vaultUsageBps = 0n;
         if (lensContract && typeof lensContract.getProtocolSnapshot === 'function') {
             try {
                 const protoSnap = await lensContract.getProtocolSnapshot();
                 if (protoSnap) {
                     vaultUsageBps = protoSnap.vaultUsageBps || 0n;
                 }
-            } catch (e) {
-                // Ignore lens snapshot error
-            }
+            } catch (e) {}
         }
 
         const pendingRequestsCount = queueTail >= queueHead ? Number(queueTail - queueHead) : 0;
 
-        // Calculate dynamic LP Token Price: (totalVaultUSDC - unrealizedPnL) / totalSupply
-        // Note: - unrealizedPnL inverses traders PnL (traders loss = vault profit)
         let calculatedLpPrice = 1000000n; // Default 1.000000 (1e6)
         if (totalSupply > 0n) {
             const vaultNetAssets = totalVaultUSDC - unrealizedPnL;
@@ -163,6 +213,11 @@ async function fetchAndSaveVaultMetrics() {
             openInterestShort: openInterestShort.toString(),
             avgEntryPriceLong: avgEntryPriceLong.toString(),
             avgEntryPriceShort: avgEntryPriceShort.toString(),
+            goldOpenInterestLong: goldOpenInterestLong.toString(),
+            goldOpenInterestShort: goldOpenInterestShort.toString(),
+            xrpOpenInterestLong: xrpOpenInterestLong.toString(),
+            xrpOpenInterestShort: xrpOpenInterestShort.toString(),
+            totalBorrowFees: totalBorrowFees.toString(),
             lpTokenPrice: calculatedLpPrice.toString()
         };
 
@@ -172,8 +227,9 @@ async function fetchAndSaveVaultMetrics() {
                 INSERT INTO vault_metrics (
                     timestamp, lastKnownPrice, totalSupply, totalVaultUSDC, totalLockedCapital,
                     freeCapital, totalPendingLP, requiredFreeUSDC, pendingRequestsCount, unrealizedPnL, vaultUsageBps,
-                    openInterestLong, openInterestShort, avgEntryPriceLong, avgEntryPriceShort, lpTokenPrice
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    openInterestLong, openInterestShort, avgEntryPriceLong, avgEntryPriceShort,
+                    goldOpenInterestLong, goldOpenInterestShort, xrpOpenInterestLong, xrpOpenInterestShort, totalBorrowFees, lpTokenPrice
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
             db.run(sql, [
@@ -192,6 +248,11 @@ async function fetchAndSaveVaultMetrics() {
                 metricsData.openInterestShort,
                 metricsData.avgEntryPriceLong,
                 metricsData.avgEntryPriceShort,
+                metricsData.goldOpenInterestLong,
+                metricsData.goldOpenInterestShort,
+                metricsData.xrpOpenInterestLong,
+                metricsData.xrpOpenInterestShort,
+                metricsData.totalBorrowFees,
                 metricsData.lpTokenPrice
             ], (err) => {
                 if (err) return reject(err);
