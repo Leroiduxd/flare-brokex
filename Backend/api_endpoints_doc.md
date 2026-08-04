@@ -15,7 +15,7 @@ http://localhost:3000
 
 ### `GET /api/volume`
 ### `GET /api/protocol/volume`
-Retourne les métriques de volume (24h, 7d, All-Time), les Borrow Fees par période (24h, 7d, 30d, All-Time calculés sur les `closeTimestamp`) ainsi que les statistiques globales du protocole.
+Retourne les métriques de volume (24h, 7d, All-Time) avec ventilation par actif (`GOLD`, `XRP`, `byAsset`), les Borrow Fees par période (24h, 7d, 30d, All-Time calculés sur les `closeTimestamp`) ainsi que les statistiques globales du protocole.
 
 * **Paramètres de requête :** Aucun
 * **Exemple de réponse JSON :**
@@ -24,17 +24,59 @@ Retourne les métriques de volume (24h, 7d, All-Time), les Borrow Fees par péri
   "v24h": {
     "longVolume": "17952",
     "shortVolume": "18738",
-    "totalVolume": "36690"
+    "totalVolume": "36690",
+    "GOLD": {
+      "longVolume": "10000",
+      "shortVolume": "12000",
+      "totalVolume": "22000"
+    },
+    "XRP": {
+      "longVolume": "7952",
+      "shortVolume": "6738",
+      "totalVolume": "14690"
+    },
+    "byAsset": {
+      "GOLD": { "longVolume": "10000", "shortVolume": "12000", "totalVolume": "22000" },
+      "XRP": { "longVolume": "7952", "shortVolume": "6738", "totalVolume": "14690" }
+    }
   },
   "v7d": {
     "longVolume": "17952",
     "shortVolume": "18738",
-    "totalVolume": "36690"
+    "totalVolume": "36690",
+    "GOLD": {
+      "longVolume": "10000",
+      "shortVolume": "12000",
+      "totalVolume": "22000"
+    },
+    "XRP": {
+      "longVolume": "7952",
+      "shortVolume": "6738",
+      "totalVolume": "14690"
+    },
+    "byAsset": {
+      "GOLD": { "longVolume": "10000", "shortVolume": "12000", "totalVolume": "22000" },
+      "XRP": { "longVolume": "7952", "shortVolume": "6738", "totalVolume": "14690" }
+    }
   },
   "allTime": {
     "longVolume": "17952",
     "shortVolume": "18738",
-    "totalVolume": "36690"
+    "totalVolume": "36690",
+    "GOLD": {
+      "longVolume": "10000",
+      "shortVolume": "12000",
+      "totalVolume": "22000"
+    },
+    "XRP": {
+      "longVolume": "7952",
+      "shortVolume": "6738",
+      "totalVolume": "14690"
+    },
+    "byAsset": {
+      "GOLD": { "longVolume": "10000", "shortVolume": "12000", "totalVolume": "22000" },
+      "XRP": { "longVolume": "7952", "shortVolume": "6738", "totalVolume": "14690" }
+    }
   },
   "borrowFees": {
     "f24h": { "totalBorrowFee": "150200", "closedTradesCount": 5 },
@@ -88,7 +130,7 @@ Retourne les séries temporelles des Borrow Fees agrégés par intervalle (par h
 
 ### `GET /api/volume/trader/:traderAddress`
 ### `GET /api/trader/volume/:traderAddress`
-Retourne les volumes réalisés spécifiquement par un trader.
+Retourne les volumes réalisés spécifiquement par un trader, avec la ventilation par actif (`GOLD`, `XRP`, `byAsset`).
 
 * **Paramètres d'URL :**
   - `traderAddress` *(string)* : Adresse Web3 du trader.
@@ -99,17 +141,23 @@ Retourne les volumes réalisés spécifiquement par un trader.
   "v24h": {
     "longVolume": "100000000",
     "shortVolume": "50000000",
-    "totalVolume": "150000000"
+    "totalVolume": "150000000",
+    "GOLD": { "longVolume": "60000000", "shortVolume": "30000000", "totalVolume": "90000000" },
+    "XRP": { "longVolume": "40000000", "shortVolume": "20000000", "totalVolume": "60000000" }
   },
   "v7d": {
     "longVolume": "500000000",
     "shortVolume": "200000000",
-    "totalVolume": "700000000"
+    "totalVolume": "700000000",
+    "GOLD": { "longVolume": "300000000", "shortVolume": "120000000", "totalVolume": "420000000" },
+    "XRP": { "longVolume": "200000000", "shortVolume": "80000000", "totalVolume": "280000000" }
   },
   "allTime": {
     "longVolume": "1200000000",
     "shortVolume": "800000000",
-    "totalVolume": "2000000000"
+    "totalVolume": "2000000000",
+    "GOLD": { "longVolume": "700000000", "shortVolume": "500000000", "totalVolume": "1200000000" },
+    "XRP": { "longVolume": "500000000", "shortVolume": "300000000", "totalVolume": "800000000" }
   }
 }
 ```

@@ -10,6 +10,10 @@ const STATE_CANCELLED = 3;
 const DIR_SHORT = 0;
 const DIR_LONG  = 1;
 
+// Identifiants des actifs
+const GOLD_ASSET_HASH = (process.env.GOLD_ASSET_HASH || '0x5656b83664973a9b4e2c18d45b7578e6746ee4a565da62e3ac579fb9e05acc55').toLowerCase();
+const XRP_ASSET_HASH  = (process.env.XRP_ASSET_HASH  || '0xfe136bfb1b369cfb823e20ecbc952f4ebac08b535d58fbc83b0f5b25208f0298').toLowerCase();
+
 /**
  * Calcule les métriques de volume sur les trades récupérés de la DB
  * @param {Array} trades 
@@ -18,6 +22,12 @@ const DIR_LONG  = 1;
 function calculateVolumeForPeriod(trades, startTimeSec = 0) {
     let totalLongVolume = 0n;
     let totalShortVolume = 0n;
+
+    // Métriques par actif: key -> { long: 0n, short: 0n }
+    const assetVolumes = {
+        GOLD: { long: 0n, short: 0n },
+        XRP:  { long: 0n, short: 0n }
+    };
 
     for (const trade of trades) {
         const state = Number(trade.state);
@@ -37,31 +47,62 @@ function calculateVolumeForPeriod(trades, startTimeSec = 0) {
         // Taille d'une position unitaire en 10^6 (margin * leverage / 1e6)
         const singlePositionVolume = (margin * leverage) / 1000000n;
 
+        // Déterminer l'actif du trade
+        const tradeHash = (trade.assetHash || '').toLowerCase();
+        let assetKey = 'OTHER';
+        if (tradeHash === GOLD_ASSET_HASH) {
+            assetKey = 'GOLD';
+        } else if (tradeHash === XRP_ASSET_HASH) {
+            assetKey = 'XRP';
+        } else if (tradeHash) {
+            assetKey = tradeHash;
+        }
+
+        if (!assetVolumes[assetKey]) {
+            assetVolumes[assetKey] = { long: 0n, short: 0n };
+        }
+
+        // Helper pour ajouter le volume
+        const addVolume = (dir, vol) => {
+            if (dir === DIR_LONG) {
+                totalLongVolume += vol;
+                assetVolumes[assetKey].long += vol;
+            } else if (dir === DIR_SHORT) {
+                totalShortVolume += vol;
+                assetVolumes[assetKey].short += vol;
+            }
+        };
+
         // 1. Vérification de l'OUVERTURE (si openTimestamp >= startTimeSec)
         if (openTime >= startTimeSec) {
-            if (direction === DIR_LONG) {
-                totalLongVolume += singlePositionVolume;
-            } else if (direction === DIR_SHORT) {
-                totalShortVolume += singlePositionVolume;
-            }
+            addVolume(direction, singlePositionVolume);
         }
 
         // 2. Vérification de la FERMETURE (si l'état est un état fermé et closeTimestamp >= startTimeSec)
         if (state >= STATE_CLOSED && closeTime >= startTimeSec) {
-            if (direction === DIR_LONG) {
-                totalLongVolume += singlePositionVolume;
-            } else if (direction === DIR_SHORT) {
-                totalShortVolume += singlePositionVolume;
-            }
+            addVolume(direction, singlePositionVolume);
         }
     }
 
     const totalVolume = totalLongVolume + totalShortVolume;
 
+    const byAsset = {};
+    for (const [key, val] of Object.entries(assetVolumes)) {
+        const tot = val.long + val.short;
+        byAsset[key] = {
+            longVolume: val.long.toString(),
+            shortVolume: val.short.toString(),
+            totalVolume: tot.toString()
+        };
+    }
+
     return {
         longVolume: totalLongVolume.toString(),
         shortVolume: totalShortVolume.toString(),
-        totalVolume: totalVolume.toString()
+        totalVolume: totalVolume.toString(),
+        GOLD: byAsset.GOLD || { longVolume: '0', shortVolume: '0', totalVolume: '0' },
+        XRP: byAsset.XRP || { longVolume: '0', shortVolume: '0', totalVolume: '0' },
+        byAsset
     };
 }
 
@@ -71,7 +112,7 @@ function calculateVolumeForPeriod(trades, startTimeSec = 0) {
  */
 function getTraderVolumes(traderAddress) {
     return new Promise((resolve, reject) => {
-        const sql = `SELECT state, direction, margin, leverage, openTimestamp, closeTimestamp FROM trades WHERE LOWER(trader) = LOWER(?)`;
+        const sql = `SELECT assetHash, state, direction, margin, leverage, openTimestamp, closeTimestamp FROM trades WHERE LOWER(trader) = LOWER(?)`;
 
         db.all(sql, [traderAddress], (err, rows) => {
             if (err) return reject(err);
@@ -187,7 +228,7 @@ function getBorrowFeeChart(timeframe = '1h') {
 
 function getProtocolVolumes() {
     return new Promise((resolve, reject) => {
-        const sql = `SELECT trader, state, direction, margin, leverage, openTimestamp, closeTimestamp, borrowFee FROM trades`;
+        const sql = `SELECT trader, assetHash, state, direction, margin, leverage, openTimestamp, closeTimestamp, borrowFee FROM trades`;
 
         db.all(sql, [], (err, rows) => {
             if (err) return reject(err);
@@ -289,19 +330,19 @@ if (require.main === module) {
     getProtocolVolumes().then(res => {
         console.log("=== VOLUMES DU PROTOCOLE (Unités en 10^6 / USDT avec 6 décimales) ===");
         console.log("\n--- 24 Heures ---");
-        console.log(`Long:  ${res.v24h.longVolume}`);
-        console.log(`Short: ${res.v24h.shortVolume}`);
-        console.log(`Total: ${res.v24h.totalVolume}`);
+        console.log(`Global: Long=${res.v24h.longVolume}, Short=${res.v24h.shortVolume}, Total=${res.v24h.totalVolume}`);
+        console.log(`  └─ Or (GOLD): Long=${res.v24h.GOLD.longVolume}, Short=${res.v24h.GOLD.shortVolume}, Total=${res.v24h.GOLD.totalVolume}`);
+        console.log(`  └─ XRP:       Long=${res.v24h.XRP.longVolume}, Short=${res.v24h.XRP.shortVolume}, Total=${res.v24h.XRP.totalVolume}`);
 
         console.log("\n--- 7 Jours ---");
-        console.log(`Long:  ${res.v7d.longVolume}`);
-        console.log(`Short: ${res.v7d.shortVolume}`);
-        console.log(`Total: ${res.v7d.totalVolume}`);
+        console.log(`Global: Long=${res.v7d.longVolume}, Short=${res.v7d.shortVolume}, Total=${res.v7d.totalVolume}`);
+        console.log(`  └─ Or (GOLD): Long=${res.v7d.GOLD.longVolume}, Short=${res.v7d.GOLD.shortVolume}, Total=${res.v7d.GOLD.totalVolume}`);
+        console.log(`  └─ XRP:       Long=${res.v7d.XRP.longVolume}, Short=${res.v7d.XRP.shortVolume}, Total=${res.v7d.XRP.totalVolume}`);
 
         console.log("\n--- All Time ---");
-        console.log(`Long:  ${res.allTime.longVolume}`);
-        console.log(`Short: ${res.allTime.shortVolume}`);
-        console.log(`Total: ${res.allTime.totalVolume}`);
+        console.log(`Global: Long=${res.allTime.longVolume}, Short=${res.allTime.shortVolume}, Total=${res.allTime.totalVolume}`);
+        console.log(`  └─ Or (GOLD): Long=${res.allTime.GOLD.longVolume}, Short=${res.allTime.GOLD.shortVolume}, Total=${res.allTime.GOLD.totalVolume}`);
+        console.log(`  └─ XRP:       Long=${res.allTime.XRP.longVolume}, Short=${res.allTime.XRP.shortVolume}, Total=${res.allTime.XRP.totalVolume}`);
         
         process.exit(0);
     }).catch(err => {
