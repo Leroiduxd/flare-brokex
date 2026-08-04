@@ -1,5 +1,16 @@
-node_modules/
+# Environment variables
+.env
+.env.local
+
+# Databases & local storage
+*.sqlite
+*.sqlite3
+*.db
 database.sqlite
-data/
-*.log
+data/*.json
+
+# Node modules
+node_modules/
+
+# OS metadata
 .DS_Store

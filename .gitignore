@@ -1,22 +1,19 @@
-# Node dependencies
-**/node_modules/
+# Environment variables
+.env
+.env.*
+
+# Node & dependencies
 node_modules/
+dist/
 
-# Build outputs & artifacts
-**/build/
-**/dist/
-**/artifacts/
-**/cache/
-**/typechain-types/
+# SQLite Databases & Local Storage
+*.sqlite
+*.sqlite3
+*.db
+Backend/database.sqlite
+Backend/data/*.json
 
-# Database & log files
-**/database.sqlite
-database.sqlite
-*.log
+# OS & IDE metadata
 .DS_Store
-**/.DS_Store
-
-# Heavy cached data
-Backend/data/
-**/data/chart/
-**/pyth_price_differences.json
+.vscode/
+.idea/
