@@ -14,7 +14,7 @@ Ce document sert de guide et de contexte permanent pour les prochains agents AI 
 2. **DÉPLOIEMENT SUR LE VPS** :
    - **Adresse VPS SSH** : `ubuntu@51.178.43.25`
    - **Dossier de l'application sur le VPS** : `/home/ubuntu/apps/flare-brokex`
-   - **Service Backend PM2** : ID `2` (Nom : `brokex-backend`)
+   - **Service Backend PM2** : ID `2` (Nom : `brokex-backend`, Port : `1234`)
    - **Dépôt GitHub Remote** : `https://github.com/Leroiduxd/flare-brokex.git` (Branche `main`)
    - Procédure de mise à jour sur le VPS :
      ```bash
