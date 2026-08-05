@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNotifications } from '../context/NotificationContext';
 import { usePriceStream } from '../context/PriceContext';
+import { useGlobalData } from '../context/DataContext';
 import { useAccount, useWriteContract, useReadContract } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { encodeAbiParameters, parseAbiParameters, keccak256 } from 'viem';
@@ -383,42 +384,46 @@ export default function OrderPanel() {
   const selectedAssetBadge = isXRP ? 'XRP' : 'XAU';
   const priceDecimals = isXRP ? 4 : 2;
 
-  // Fetch TEE Risk Params (Spreads & Max OI limits) according to selected asset
-  useEffect(() => {
-    let isMounted = true;
-    const loadRiskParams = async () => {
-      const p = await fetchTeeRiskParams(selectedAssetKey);
-      if (isMounted && p) {
-        // spreadLongBps: 30 = 30 Basis Points (0.03% -> 30/100000)
-        const sL = p.spreadLongBps !== undefined ? Number(p.spreadLongBps) : (p.spreadLong !== undefined ? Number(p.spreadLong) / 10 : 30);
-        const sS = p.spreadShortBps !== undefined ? Number(p.spreadShortBps) : (p.spreadShort !== undefined ? Number(p.spreadShort) / 10 : 30);
-        setSpreadLongBps(sL);
-        setSpreadShortBps(sS);
-        if (p.maxOILong !== undefined) setMaxOILongVal(Number(p.maxOILong));
-        if (p.maxOIShort !== undefined) setMaxOIShortVal(Number(p.maxOIShort));
-      }
-    };
-    loadRiskParams();
-    const interval = setInterval(loadRiskParams, 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [selectedAssetKey]);
+  const { snapshotData, getAssetRiskParams, getAssetSnapshot } = useGlobalData();
 
-  // Listen to asset change event from TopNav toggle
+  // Sync risk params from central DataContext
   useEffect(() => {
-    const handleAssetChange = (e) => {
-      if (e.detail && e.detail.assetKey) {
-        setSelectedAssetKey(e.detail.assetKey);
-        setCurrentMarkPrice(e.detail.assetKey === 'XRP' ? 2.45 : 4046.52);
-      }
-    };
-    window.addEventListener('brokex_asset_changed', handleAssetChange);
-    return () => window.removeEventListener('brokex_asset_changed', handleAssetChange);
-  }, []);
+    const p = getAssetRiskParams(selectedAssetKey);
+    if (p) {
+      const sL = p.spreadLongBps !== undefined ? Number(p.spreadLongBps) : 30;
+      const sS = p.spreadShortBps !== undefined ? Number(p.spreadShortBps) : 30;
+      setSpreadLongBps(sL);
+      setSpreadShortBps(sS);
+      if (p.maxOILong !== undefined) setMaxOILongVal(Number(p.maxOILong));
+      if (p.maxOIShort !== undefined) setMaxOIShortVal(Number(p.maxOIShort));
+    }
+  }, [selectedAssetKey, getAssetRiskParams]);
 
-  // Compute exact Ask / Bid using WSS price * (1 + spreadBps/100000)
+  // Sync snapshot config & Open Interest from central DataContext
+  useEffect(() => {
+    const assetObj = getAssetSnapshot(selectedAssetKey);
+    if (!assetObj) return;
+
+    const assetSnap = assetObj.snapshot || assetObj;
+    const assetConfig = assetSnap.config || assetObj.config;
+
+    if (assetSnap) {
+      if (assetSnap.openInterestLong !== undefined) setCurrentOiLong(Number(assetSnap.openInterestLong));
+      if (assetSnap.openInterestShort !== undefined) setCurrentOiShort(Number(assetSnap.openInterestShort));
+    }
+
+    if (assetConfig) {
+      if (assetConfig.minLeverage) setMinLeverageNum(Number(assetConfig.minLeverage));
+      if (assetConfig.maxLeverage) setMaxLeverageNum(Number(assetConfig.maxLeverage));
+      if (assetConfig.commissionBps) setCommissionBps(Number(assetConfig.commissionBps));
+      if (assetConfig.minTradeSize) {
+        const rawMin = Number(assetConfig.minTradeSize);
+        setMinMarginUSD(rawMin > 100000 ? rawMin / 1e6 : rawMin);
+      }
+    }
+  }, [selectedAssetKey, getAssetSnapshot]);
+
+  // Compute exact Ask / Bid using live price * (1 +- spreadBps/100000)
   const defaultFallbackP = isXRP ? 2.45 : 4046.52;
   const baseP = currentMarkPrice > 0 ? currentMarkPrice : defaultFallbackP;
   const computedAsk = baseP * (1 + spreadLongBps / 100000);
@@ -427,46 +432,6 @@ export default function OrderPanel() {
   const askPriceStr = computedAsk.toLocaleString('en-US', { minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals });
   const bidPriceStr = computedBid.toLocaleString('en-US', { minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals });
   const selectedAsset = selectedAssetBadge;
-
-  const apiBase = import.meta.env.VITE_FLARE_API_URL || 'https://apiflare.brokex.trade';
-
-  // 1. Fetch live snapshot config & Open Interest from /api/snapshot
-  useEffect(() => {
-    if (!apiBase) return;
-    const fetchSnapshotConfig = async () => {
-      try {
-        const res = await fetch(`${apiBase}/api/snapshot`);
-        if (res.ok) {
-          const data = await res.json();
-          const assetObj = data.assets?.[selectedAssetKey] || data.assets?.[selectedAssetBadge] || (data.assets ? Object.values(data.assets)[0] : null);
-          const assetSnap = assetObj?.snapshot || assetObj;
-          const assetConfig = assetSnap?.config || assetObj?.config;
-
-          if (assetSnap) {
-            if (assetSnap.openInterestLong !== undefined) setCurrentOiLong(Number(assetSnap.openInterestLong));
-            if (assetSnap.openInterestShort !== undefined) setCurrentOiShort(Number(assetSnap.openInterestShort));
-          }
-
-          if (assetConfig) {
-            if (assetConfig.minLeverage) setMinLeverageNum(Number(assetConfig.minLeverage));
-            if (assetConfig.maxLeverage) setMaxLeverageNum(Number(assetConfig.maxLeverage));
-            if (assetConfig.commissionBps) setCommissionBps(Number(assetConfig.commissionBps));
-            if (assetConfig.minTradeSize) {
-              const rawMin = Number(assetConfig.minTradeSize);
-              setMinMarginUSD(rawMin > 100000 ? rawMin / 1e6 : rawMin);
-            }
-            if (assetConfig.liqThresholdBps) setLiqThresholdBps(Number(assetConfig.liqThresholdBps));
-          }
-        }
-      } catch (err) {
-        console.error("OrderPanel fetch snapshot config error:", err);
-      }
-    };
-
-    fetchSnapshotConfig();
-    const interval = setInterval(fetchSnapshotConfig, 10000);
-    return () => clearInterval(interval);
-  }, [apiBase, selectedAssetKey, selectedAssetBadge]);
 
   // Compute Available Liquidity in USD (maxOI - currentOI)
   const maxLimitRaw = side === 'buy' ? maxOILongVal : maxOIShortVal;
@@ -485,7 +450,9 @@ export default function OrderPanel() {
     }
   }, [liveMarkPrice]);
 
-  const leverageStops = [2, 10, 25, 50, maxLeverageNum];
+  const leverageStops = Array.from(new Set([2, 10, 25, 50, maxLeverageNum]))
+    .filter(v => v <= maxLeverageNum)
+    .sort((a, b) => a - b);
 
   const percentage = maxLeverageNum > minLeverageNum
     ? ((leverage - minLeverageNum) / (maxLeverageNum - minLeverageNum)) * 100

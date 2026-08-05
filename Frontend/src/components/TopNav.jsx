@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePriceStream } from '../context/PriceContext';
+import { useGlobalData } from '../context/DataContext';
 
 function formatCompactUSD(val) {
   const num = Number(val || 0);
@@ -97,105 +98,65 @@ export default function TopNav() {
     return () => window.removeEventListener('brokex_asset_changed', handleCustomChange);
   }, []);
 
-  // Fetch TEE risk parameters for dynamic spread calculation
+  const { snapshotData: globalSnapshot, volumeData: globalVolume, priceDifferences: globalDiffs, getAssetRiskParams } = useGlobalData();
+
+  // Sync TEE risk parameters for dynamic spread calculation from DataContext
   useEffect(() => {
-    let isMounted = true;
-    const loadRiskParams = async () => {
-      try {
-        const res = await fetch(`${apiBase}/api/risk-params`).catch(() => null);
-        if (res && res.ok) {
-          const data = await res.json();
-          if (isMounted && data) {
-            const assetItem = data[selectedAssetKey] || data[activeAsset.badge] || (typeof data === 'object' ? Object.values(data)[0] : null) || data;
-            const sL = assetItem?.spreadLongBps !== undefined ? Number(assetItem.spreadLongBps) : (assetItem?.spreadLong !== undefined ? Number(assetItem.spreadLong) / 10 : 30);
-            const sS = assetItem?.spreadShortBps !== undefined ? Number(assetItem.spreadShortBps) : (assetItem?.spreadShort !== undefined ? Number(assetItem.spreadShort) / 10 : 30);
-            setTeeSpreads({ spreadLongBps: sL, spreadShortBps: sS });
+    const p = getAssetRiskParams(selectedAssetKey);
+    if (p) {
+      const sL = p.spreadLongBps !== undefined ? Number(p.spreadLongBps) : 30;
+      const sS = p.spreadShortBps !== undefined ? Number(p.spreadShortBps) : 30;
+      setTeeSpreads({ spreadLongBps: sL, spreadShortBps: sS });
+    }
+  }, [selectedAssetKey, getAssetRiskParams]);
+
+  // Sync real-time snapshot, volume, and price differences from DataContext
+  useEffect(() => {
+    if (globalSnapshot) setSnapshotData(globalSnapshot);
+    if (globalVolume) setVolumeData(globalVolume);
+
+    setAssetMetrics(prev => {
+      const next = { ...prev };
+      const diffArray = Array.isArray(globalDiffs) ? globalDiffs : (globalDiffs?.data || []);
+
+      ['GOLD', 'XRP'].forEach(key => {
+        const currentItem = next[key] || {};
+
+        const rawVol = getAssetVolume24h(globalVolume, key);
+        const volFormatted = formatCompactUSD(rawVol);
+
+        const diffItem = diffArray.find(d => (d.alias || d.symbol || '').toUpperCase() === key);
+        let changeStr = currentItem.change || '+0.00%';
+        let isUp = currentItem.isUp ?? true;
+
+        if (diffItem) {
+          const diffNum = parseFloat(diffItem.day_price_diff_decimal || diffItem.hour_price_diff_decimal || 0) * 100;
+          isUp = diffNum >= 0;
+          changeStr = `${isUp ? '+' : ''}${diffNum.toFixed(2)}%`;
+        }
+
+        const astData = globalSnapshot?.assets?.[key] || null;
+        const astSnap = astData?.snapshot || astData || null;
+        let priceStr = currentItem.price || ASSET_CONFIGS[key].defaultPrice;
+        if (astSnap?.lastKnownPrice) {
+          const numP = Number(astSnap.lastKnownPrice) > 100000 ? Number(astSnap.lastKnownPrice) / 1e6 : Number(astSnap.lastKnownPrice);
+          if (numP > 0) {
+            const dec = key === 'XRP' ? 4 : 2;
+            priceStr = numP.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
           }
         }
-      } catch (e) { }
-    };
-    loadRiskParams();
-    const interval = setInterval(loadRiskParams, 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [apiBase, selectedAssetKey, activeAsset.badge]);
 
-  // Fetch real-time snapshot, volume, and price differences for rich asset selector info
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const [snapRes, volRes, diffRes] = await Promise.all([
-          fetch(`${apiBase}/api/snapshot`).catch(() => null),
-          fetch(`${apiBase}/api/volume`).catch(() => null),
-          fetch(`${apiBase}/api/price-differences`).catch(() => null)
-        ]);
+        next[key] = {
+          price: priceStr,
+          change: changeStr,
+          isUp,
+          vol: volFormatted
+        };
+      });
 
-        let snapJson = null;
-        let volJson = null;
-        let diffJson = null;
-
-        if (snapRes && snapRes.ok) snapJson = await snapRes.json();
-        if (volRes && volRes.ok) volJson = await volRes.json();
-        if (diffRes && diffRes.ok) diffJson = await diffRes.json();
-
-        if (snapJson) setSnapshotData(snapJson);
-        if (volJson) setVolumeData(volJson);
-
-        setAssetMetrics(prev => {
-          const next = { ...prev };
-          const diffArray = Array.isArray(diffJson) ? diffJson : (diffJson?.data || []);
-
-          ['GOLD', 'XRP'].forEach(key => {
-            const currentItem = next[key] || {};
-
-            // Extract asset-specific 24h volume
-            const rawVol = getAssetVolume24h(volJson, key);
-            const volFormatted = formatCompactUSD(rawVol);
-
-            // Price diff (24h variation)
-            const diffItem = diffArray.find(d => (d.alias || d.symbol || '').toUpperCase() === key);
-            let changeStr = currentItem.change || '+0.00%';
-            let isUp = currentItem.isUp ?? true;
-
-            if (diffItem) {
-              const diffNum = parseFloat(diffItem.day_price_diff_decimal || diffItem.hour_price_diff_decimal || 0) * 100;
-              isUp = diffNum >= 0;
-              changeStr = `${isUp ? '+' : ''}${diffNum.toFixed(2)}%`;
-            }
-
-            // Price from snapshot if available
-            const astData = snapJson?.assets?.[key] || null;
-            const astSnap = astData?.snapshot || astData || null;
-            let priceStr = currentItem.price || ASSET_CONFIGS[key].defaultPrice;
-            if (astSnap?.lastKnownPrice) {
-              const numP = Number(astSnap.lastKnownPrice) > 100000 ? Number(astSnap.lastKnownPrice) / 1e6 : Number(astSnap.lastKnownPrice);
-              if (numP > 0) {
-                const dec = key === 'XRP' ? 4 : 2;
-                priceStr = numP.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-              }
-            }
-
-            next[key] = {
-              price: priceStr,
-              change: changeStr,
-              isUp,
-              vol: volFormatted
-            };
-          });
-
-          return next;
-        });
-      } catch (e) {
-        console.error("TopNav fetch metrics error:", e);
-      }
-    };
-
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 10000);
-    return () => clearInterval(interval);
-  }, [apiBase]);
+      return next;
+    });
+  }, [globalSnapshot, globalVolume, globalDiffs]);
 
   const { currentMarkPrice: liveMarkPrice } = usePriceStream();
 
@@ -203,33 +164,9 @@ export default function TopNav() {
     if (liveMarkPrice > 0) {
       const decimals = selectedAssetKey === 'XRP' ? 4 : 2;
       const formattedPrice = liveMarkPrice.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-
-      setLivePrice(prev => {
-        const prevNum = parseFloat((prev || '0').replace(/,/g, ''));
-        let newChange = priceChange;
-        let isUp = true;
-        if (!isNaN(prevNum) && prevNum > 0 && liveMarkPrice !== prevNum) {
-          const diffPct = ((liveMarkPrice - prevNum) / prevNum) * 100;
-          const sign = diffPct >= 0 ? '+' : '';
-          newChange = `${sign}${diffPct.toFixed(2)}%`;
-          isUp = diffPct >= 0;
-          setPriceChange(newChange);
-        }
-
-        setAssetMetrics(am => ({
-          ...am,
-          [selectedAssetKey]: {
-            ...(am[selectedAssetKey] || {}),
-            price: formattedPrice,
-            change: newChange,
-            isUp
-          }
-        }));
-
-        return formattedPrice;
-      });
+      setLivePrice(formattedPrice);
     }
-  }, [liveMarkPrice, selectedAssetKey, priceChange]);
+  }, [liveMarkPrice, selectedAssetKey]);
 
   // Compute stats dynamically from snapshot and volume API data
   const currentAssetData = snapshotData?.assets?.[selectedAssetKey] || snapshotData?.assets?.[activeAsset.badge] || null;

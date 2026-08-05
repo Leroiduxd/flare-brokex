@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { useGlobalData } from '../../context/DataContext';
 
 const apiBase = import.meta.env.VITE_FLARE_API_URL || 'https://apiflare.brokex.trade';
 
@@ -8,32 +9,28 @@ export default function VaultHeader() {
   const [metricsData, setMetricsData] = useState([]);
   const [snapshotData, setSnapshotData] = useState(null);
 
+  const { snapshotData: globalSnapshot } = useGlobalData();
+
+  useEffect(() => {
+    if (globalSnapshot) setSnapshotData(globalSnapshot);
+  }, [globalSnapshot]);
+
   useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
       try {
-        const [snapRes, metricsRes] = await Promise.all([
-          fetch(`${apiBase}/api/snapshot`).catch(() => null),
-          fetch(`${apiBase}/api/vault/metrics?timeframe=1h&from=0`).catch(() => null)
-        ]);
-
-        if (snapRes && snapRes.ok) {
-          const snapJson = await snapRes.json();
-          if (isMounted && snapJson) setSnapshotData(snapJson);
-        }
+        const metricsRes = await fetch(`${apiBase}/api/vault/metrics?timeframe=1h&from=0`).catch(() => null);
         if (metricsRes && metricsRes.ok) {
           const metricsJson = await metricsRes.json();
           if (isMounted && metricsJson && Array.isArray(metricsJson.data)) {
             setMetricsData(metricsJson.data);
           }
         }
-      } catch (err) {
-        console.error("VaultHeader fetch error:", err);
-      }
+      } catch (err) {}
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 8000);
+    const interval = setInterval(fetchData, 10000);
     return () => {
       isMounted = false;
       clearInterval(interval);

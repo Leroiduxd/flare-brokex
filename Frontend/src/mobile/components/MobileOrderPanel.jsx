@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNotifications } from '../../context/NotificationContext';
 import { usePriceStream } from '../../context/PriceContext';
+import { useGlobalData } from '../../context/DataContext';
 import { useAccount, useWriteContract, useReadContract } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import BrokexCoreAbi from '../../abi/BrokexCore.json';
@@ -192,68 +193,45 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
     return () => window.removeEventListener('brokex_asset_changed', handleAssetChange);
   }, []);
 
-  // Fetch TEE Risk Params (Spreads & Max OI limits) according to selected asset
+  const { getAssetRiskParams, getAssetSnapshot } = useGlobalData();
+
+  // Sync risk params from central DataContext
   useEffect(() => {
-    let isMounted = true;
-    const loadRiskParams = async () => {
-      const p = await fetchTeeRiskParams(selectedAssetKey);
-      if (isMounted && p) {
-        const sL = p.spreadLongBps !== undefined ? Number(p.spreadLongBps) : (p.spreadLong !== undefined ? Number(p.spreadLong) / 10 : 30);
-        const sS = p.spreadShortBps !== undefined ? Number(p.spreadShortBps) : (p.spreadShort !== undefined ? Number(p.spreadShort) / 10 : 30);
-        setSpreadLongBps(sL);
-        setSpreadShortBps(sS);
-        if (p.maxOILong !== undefined) setMaxOILongVal(Number(p.maxOILong));
-        if (p.maxOIShort !== undefined) setMaxOIShortVal(Number(p.maxOIShort));
-      }
-    };
-    loadRiskParams();
-    const interval = setInterval(loadRiskParams, 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [selectedAssetKey]);
+    const p = getAssetRiskParams(selectedAssetKey);
+    if (p) {
+      const sL = p.spreadLongBps !== undefined ? Number(p.spreadLongBps) : 30;
+      const sS = p.spreadShortBps !== undefined ? Number(p.spreadShortBps) : 30;
+      setSpreadLongBps(sL);
+      setSpreadShortBps(sS);
+      if (p.maxOILong !== undefined) setMaxOILongVal(Number(p.maxOILong));
+      if (p.maxOIShort !== undefined) setMaxOIShortVal(Number(p.maxOIShort));
+    }
+  }, [selectedAssetKey, getAssetRiskParams]);
 
-  // Fetch snapshot config & Open Interest from /api/snapshot
+  // Sync snapshot config & Open Interest from central DataContext
   useEffect(() => {
-    let isMounted = true;
-    const fetchSnapshotConfig = async () => {
-      try {
-        const res = await fetch(`${apiBackendBase}/api/snapshot`);
-        if (res.ok) {
-          const data = await res.json();
-          const assetObj = data.assets?.[selectedAssetKey] || data.assets?.[selectedAssetBadge] || (data.assets ? Object.values(data.assets)[0] : null);
-          const assetSnap = assetObj?.snapshot || assetObj;
-          const assetConfig = assetSnap?.config || assetObj?.config;
+    const assetObj = getAssetSnapshot(selectedAssetKey);
+    if (!assetObj) return;
 
-          if (isMounted && assetSnap) {
-            if (assetSnap.openInterestLong !== undefined) setCurrentOiLong(Number(assetSnap.openInterestLong));
-            if (assetSnap.openInterestShort !== undefined) setCurrentOiShort(Number(assetSnap.openInterestShort));
-          }
+    const assetSnap = assetObj.snapshot || assetObj;
+    const assetConfig = assetSnap.config || assetObj.config;
 
-          if (isMounted && assetConfig) {
-            if (assetConfig.minLeverage) setMinLeverageNum(Number(assetConfig.minLeverage));
-            if (assetConfig.maxLeverage) setMaxLeverageNum(Number(assetConfig.maxLeverage));
-            if (assetConfig.commissionBps) setCommissionBps(Number(assetConfig.commissionBps));
-            if (assetConfig.minTradeSize) {
-              const rawMin = Number(assetConfig.minTradeSize);
-              setMinMarginUSD(rawMin > 100000 ? rawMin / 1e6 : rawMin);
-            }
-            if (assetConfig.liqThresholdBps) setLiqThresholdBps(Number(assetConfig.liqThresholdBps));
-          }
-        }
-      } catch (err) {
-        console.error("MobileOrderPanel snapshot fetch error:", err);
+    if (assetSnap) {
+      if (assetSnap.openInterestLong !== undefined) setCurrentOiLong(Number(assetSnap.openInterestLong));
+      if (assetSnap.openInterestShort !== undefined) setCurrentOiShort(Number(assetSnap.openInterestShort));
+    }
+
+    if (assetConfig) {
+      if (assetConfig.minLeverage) setMinLeverageNum(Number(assetConfig.minLeverage));
+      if (assetConfig.maxLeverage) setMaxLeverageNum(Number(assetConfig.maxLeverage));
+      if (assetConfig.commissionBps) setCommissionBps(Number(assetConfig.commissionBps));
+      if (assetConfig.minTradeSize) {
+        const rawMin = Number(assetConfig.minTradeSize);
+        setMinMarginUSD(rawMin > 100000 ? rawMin / 1e6 : rawMin);
       }
-    };
-
-    fetchSnapshotConfig();
-    const interval = setInterval(fetchSnapshotConfig, 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [selectedAssetKey, selectedAssetBadge]);
+      if (assetConfig.liqThresholdBps) setLiqThresholdBps(Number(assetConfig.liqThresholdBps));
+    }
+  }, [selectedAssetKey, getAssetSnapshot]);
 
   const { currentMarkPrice: liveMarkPrice } = usePriceStream();
 
@@ -281,7 +259,9 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
   const bidPrice = computedBid.toLocaleString('en-US', { minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals });
   const selectedAsset = selectedAssetBadge;
 
-  const leverageStops = [2, 10, 25, 50, maxLeverageNum];
+  const leverageStops = Array.from(new Set([2, 10, 25, 50, maxLeverageNum]))
+    .filter(v => v <= maxLeverageNum)
+    .sort((a, b) => a - b);
   const percentage = maxLeverageNum > minLeverageNum
     ? ((leverage - minLeverageNum) / (maxLeverageNum - minLeverageNum)) * 100
     : 0;

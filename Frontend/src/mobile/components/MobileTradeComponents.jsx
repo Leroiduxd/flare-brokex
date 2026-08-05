@@ -3,6 +3,7 @@ import { useAccount, useWriteContract } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useNotifications } from '../../context/NotificationContext';
 import { usePriceStream } from '../../context/PriceContext';
+import { useGlobalData } from '../../context/DataContext';
 import { fetchTeeProof, closePositionMarketAbi } from '../../components/OrderPanel';
 import MobileTradeHeader from './MobileTradeHeader';
 import MobilePositions from './MobilePositions';
@@ -29,46 +30,19 @@ export function MobileTopNav({ activeMarketInfo = {}, setIsMarketSelectorOpen })
   const [livePrice, setLivePrice] = useState(activeMarketInfo?.price || '4,046.52');
   const [priceChange, setPriceChange] = useState(activeMarketInfo?.change || '+0.12%');
 
-  // 1. Fetch real-time snapshot & volume metrics
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const [snapRes, volRes] = await Promise.all([
-          fetch(`${apiBase}/api/snapshot`),
-          fetch(`${apiBase}/api/volume`)
-        ]);
-        if (snapRes.ok) {
-          const snapJson = await snapRes.json();
-          setSnapshotData(snapJson);
-        }
-        if (volRes.ok) {
-          const volJson = await volRes.json();
-          setVolumeData(volJson);
-        }
-      } catch (e) {
-        console.error("MobileTopNav fetch metrics error:", e);
-      }
-    };
+  const { snapshotData: globalSnapshot, volumeData: globalVolume } = useGlobalData();
 
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 10000);
-    return () => clearInterval(interval);
-  }, [apiBase]);
+  useEffect(() => {
+    if (globalSnapshot) setSnapshotData(globalSnapshot);
+    if (globalVolume) setVolumeData(globalVolume);
+  }, [globalSnapshot, globalVolume]);
 
   const { currentMarkPrice: liveMarkPrice } = usePriceStream();
 
   useEffect(() => {
     if (liveMarkPrice > 0) {
       const formattedPrice = liveMarkPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      setLivePrice(prev => {
-        const prevNum = parseFloat((prev || '0').replace(/,/g, ''));
-        if (!isNaN(prevNum) && prevNum > 0 && liveMarkPrice !== prevNum) {
-          const diffPct = ((liveMarkPrice - prevNum) / prevNum) * 100;
-          const sign = diffPct >= 0 ? '+' : '';
-          setPriceChange(`${sign}${diffPct.toFixed(2)}%`);
-        }
-        return formattedPrice;
-      });
+      setLivePrice(formattedPrice);
     }
   }, [liveMarkPrice]);
 

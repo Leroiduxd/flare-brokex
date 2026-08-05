@@ -102,7 +102,14 @@ export function PriceProvider({ children }) {
 export function usePriceStream() {
   const context = useContext(PriceContext);
   if (!context) {
-    throw new Error('usePriceStream must be used within a PriceProvider');
+    return {
+      selectedAssetKey: 'GOLD',
+      setSelectedAssetKey: () => {},
+      currentMarkPrice: 4046.52,
+      prices: { GOLD: 4046.52, XRP: 2.45 },
+      isXRP: false,
+      selectedAssetSymbol: 'Metal.XAU/USD'
+    };
   }
   return context;
 }

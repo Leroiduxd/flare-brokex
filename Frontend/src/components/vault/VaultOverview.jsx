@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useGlobalData } from '../../context/DataContext';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -42,27 +43,23 @@ export default function VaultOverview() {
   const themeTextMuted = 'var(--text-grey, #888888)';
   const themeBorder = 'var(--border-color, #222)';
 
-  // 1. Fetch live metrics from /api/vault/metrics & /api/snapshot
+  const { snapshotData: globalSnapshot } = useGlobalData();
+
+  useEffect(() => {
+    if (globalSnapshot) setSnapshotData(globalSnapshot);
+  }, [globalSnapshot]);
+
+  // 1. Fetch live metrics from /api/vault/metrics
   useEffect(() => {
     let isMounted = true;
     const fetchVaultData = async () => {
       try {
-        const [metricsRes, snapRes] = await Promise.all([
-          fetch(`${apiBase}/api/vault/metrics?timeframe=1h&from=0`).catch(() => null),
-          fetch(`${apiBase}/api/snapshot`).catch(() => null)
-        ]);
+        const metricsRes = await fetch(`${apiBase}/api/vault/metrics?timeframe=1h&from=0`).catch(() => null);
 
         if (metricsRes && metricsRes.ok) {
           const metricsJson = await metricsRes.json();
           if (isMounted && metricsJson && Array.isArray(metricsJson.data)) {
             setVaultMetrics(metricsJson.data);
-          }
-        }
-
-        if (snapRes && snapRes.ok) {
-          const snapJson = await snapRes.json();
-          if (isMounted && snapJson) {
-            setSnapshotData(snapJson);
           }
         }
       } catch (err) {

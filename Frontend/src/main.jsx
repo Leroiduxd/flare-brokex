@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.jsx'
 import { NotificationProvider } from './context/NotificationContext'
 import { PriceProvider } from './context/PriceContext'
+import { DataProvider } from './context/DataContext'
 import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit'
@@ -22,9 +23,11 @@ createRoot(document.getElementById('root')).render(
           overlayBlur: 'small',
         })}>
           <NotificationProvider>
-            <PriceProvider>
-              <App />
-            </PriceProvider>
+            <DataProvider>
+              <PriceProvider>
+                <App />
+              </PriceProvider>
+            </DataProvider>
           </NotificationProvider>
         </RainbowKitProvider>
       </QueryClientProvider>

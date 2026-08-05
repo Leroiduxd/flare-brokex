@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useGlobalData } from '../context/DataContext';
 
 const DISPLAY_NAMES = {
   'BTC': 'BTC/USD',
@@ -36,43 +37,27 @@ export default function Ticker() {
   const [viewMode, setViewMode] = useState('winners'); // 'winners' or 'losers'
   const [assetsData, setAssetsData] = useState(MOCK_FALLBACK_ASSETS);
 
-  const apiBase = import.meta.env.VITE_FLARE_API_URL;
+  const { priceDifferences: globalDiffs } = useGlobalData();
 
   useEffect(() => {
-    const fetchPriceDifferences = async () => {
-      try {
-        let res = await fetch(`${apiBase}/api/price-differences`);
-        if (!res.ok) {
-          res = await fetch(`${apiBase}/api/pyth/price-differences`);
-        }
-        if (res.ok) {
-          const json = await res.json();
-          const rawData = Array.isArray(json) ? json : (json.data || []);
+    if (!globalDiffs) return;
+    const rawData = Array.isArray(globalDiffs) ? globalDiffs : (globalDiffs.data || []);
 
-          const parsed = rawData.map(item => {
-            const diffNum = parseFloat(item.day_price_diff_decimal || item.hour_price_diff_decimal || 0) * 100;
-            const aliasKey = (item.alias || item.symbol || '').toUpperCase();
-            return {
-              symbol: DISPLAY_NAMES[aliasKey] || aliasKey || 'ASSET',
-              variation: diffNum,
-              formatted: `${diffNum >= 0 ? '+' : ''}${diffNum.toFixed(2)}%`,
-              isUp: diffNum >= 0
-            };
-          });
+    const parsed = rawData.map(item => {
+      const diffNum = parseFloat(item.day_price_diff_decimal || item.hour_price_diff_decimal || 0) * 100;
+      const aliasKey = (item.alias || item.symbol || '').toUpperCase();
+      return {
+        symbol: DISPLAY_NAMES[aliasKey] || aliasKey || 'ASSET',
+        variation: diffNum,
+        formatted: `${diffNum >= 0 ? '+' : ''}${diffNum.toFixed(2)}%`,
+        isUp: diffNum >= 0
+      };
+    });
 
-          if (parsed.length > 0) {
-            setAssetsData(parsed);
-          }
-        }
-      } catch (err) {
-        console.error("Ticker fetch price differences error:", err);
-      }
-    };
-
-    fetchPriceDifferences();
-    const interval = setInterval(fetchPriceDifferences, 15000);
-    return () => clearInterval(interval);
-  }, [apiBase]);
+    if (parsed.length > 0) {
+      setAssetsData(parsed);
+    }
+  }, [globalDiffs]);
 
   const toggleMode = () => {
     setViewMode(prev => prev === 'winners' ? 'losers' : 'winners');

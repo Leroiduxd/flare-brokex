@@ -3,6 +3,7 @@ import { useAccount, useWriteContract } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useNotifications } from '../context/NotificationContext';
 import { usePriceStream } from '../context/PriceContext';
+import { useGlobalData } from '../context/DataContext';
 import PositionManager from './PositionManager';
 import { cancelOrderAbi, closePositionMarketAbi, fetchTeeProof } from './OrderPanel';
 
@@ -192,6 +193,7 @@ export default function Positions() {
   };
 
 
+  const { snapshotData: globalSnapshot, riskParams: globalRisk } = useGlobalData();
   const { prices } = usePriceStream();
 
   useEffect(() => {
@@ -216,29 +218,18 @@ export default function Positions() {
     return () => window.removeEventListener('brokex_asset_changed', handleAssetChange);
   }, []);
 
-  // 2. Fetch profitCap from /api/snapshot
   useEffect(() => {
-    const fetchSnapshot = async () => {
-      try {
-        const res = await fetch(`${apiBase}/api/snapshot`);
-        if (res.ok) {
-          const data = await res.json();
-          const goldConfig = data.assets?.GOLD?.snapshot?.config || data.assets?.GOLD?.config;
-          if (goldConfig?.profitCap) {
-            const capVal = Number(goldConfig.profitCap);
-            if (!isNaN(capVal) && capVal > 0) {
-              const capUSD = capVal > 1000000 ? capVal / 1e6 : capVal;
-              setProfitCapUSD(capUSD);
-            }
-          }
+    if (globalSnapshot) {
+      const goldConfig = globalSnapshot.assets?.GOLD?.snapshot?.config || globalSnapshot.assets?.GOLD?.config;
+      if (goldConfig?.profitCap) {
+        const capVal = Number(goldConfig.profitCap);
+        if (!isNaN(capVal) && capVal > 0) {
+          const capUSD = capVal > 1000000 ? capVal / 1e6 : capVal;
+          setProfitCapUSD(capUSD);
         }
-      } catch (err) {
-        console.error("Positions snapshot fetch error:", err);
       }
-    };
-
-    fetchSnapshot();
-  }, []);
+    }
+  }, [globalSnapshot]);
 
   // 3. Fetch Trader Trades from GET /api/trades/trader/:traderAddress
   useEffect(() => {
@@ -263,7 +254,6 @@ export default function Positions() {
           setRawApiTrades([]);
         }
       } catch (err) {
-        console.error("Error fetching trader trades:", err);
         setRawApiTrades([]);
       } finally {
         setLoading(false);
@@ -280,39 +270,23 @@ export default function Positions() {
     XRP: { spreadLongBps: 30, spreadShortBps: 30 }
   });
 
-  // Fetch TEE risk parameters for dynamic exit spread PnL calculation for GOLD & XRP
   useEffect(() => {
-    let isMounted = true;
-    const loadRiskParams = async () => {
-      try {
-        const res = await fetch(`${apiBase}/api/risk-params`).catch(() => null);
-        if (res && res.ok) {
-          const data = await res.json();
-          if (isMounted && data) {
-            const goldItem = data.GOLD || data.XAU || (typeof data === 'object' ? Object.values(data)[0] : null) || data;
-            const xrpItem = data.XRP;
+    if (globalRisk) {
+      const goldItem = globalRisk.GOLD || globalRisk.XAU || (typeof globalRisk === 'object' ? Object.values(globalRisk)[0] : null) || globalRisk;
+      const xrpItem = globalRisk.XRP;
 
-            const gL = goldItem?.spreadLongBps !== undefined ? Number(goldItem.spreadLongBps) : (goldItem?.spreadLong !== undefined ? Number(goldItem.spreadLong) / 10 : 30);
-            const gS = goldItem?.spreadShortBps !== undefined ? Number(goldItem.spreadShortBps) : (goldItem?.spreadShort !== undefined ? Number(goldItem.spreadShort) / 10 : 30);
+      const gL = goldItem?.spreadLongBps !== undefined ? Number(goldItem.spreadLongBps) : 30;
+      const gS = goldItem?.spreadShortBps !== undefined ? Number(goldItem.spreadShortBps) : 30;
 
-            const xL = xrpItem?.spreadLongBps !== undefined ? Number(xrpItem.spreadLongBps) : (xrpItem?.spreadLong !== undefined ? Number(xrpItem.spreadLong) / 10 : 30);
-            const xS = xrpItem?.spreadShortBps !== undefined ? Number(xrpItem.spreadShortBps) : (xrpItem?.spreadShort !== undefined ? Number(xrpItem.spreadShort) / 10 : 30);
+      const xL = xrpItem?.spreadLongBps !== undefined ? Number(xrpItem.spreadLongBps) : 30;
+      const xS = xrpItem?.spreadShortBps !== undefined ? Number(xrpItem.spreadShortBps) : 30;
 
-            setTeeSpreads({
-              GOLD: { spreadLongBps: gL, spreadShortBps: gS },
-              XRP: { spreadLongBps: xL, spreadShortBps: xS }
-            });
-          }
-        }
-      } catch (e) {}
-    };
-    loadRiskParams();
-    const interval = setInterval(loadRiskParams, 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
+      setTeeSpreads({
+        GOLD: { spreadLongBps: gL, spreadShortBps: gS },
+        XRP: { spreadLongBps: xL, spreadShortBps: xS }
+      });
+    }
+  }, [globalRisk]);
 
   // Helper to parse raw API trade structure according to exact backend constants
   const parseTrade = (raw) => {
