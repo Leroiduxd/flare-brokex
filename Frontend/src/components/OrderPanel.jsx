@@ -947,7 +947,7 @@ export default function OrderPanel() {
           <div
             onClick={() => setTpSlEnabled(!tpSlEnabled)}
             style={{
-              padding: '6px 8px',
+              padding: '10px 8px',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',

@@ -681,20 +681,77 @@ export function MobilePositionManager({ isOpen, onClose, position, initialTab = 
           )}
 
           {activeTab === 'tpsl' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '9px', color: 'var(--text-grey)' }}>TAKE PROFIT</span>
-                <input
-                  type="number" value={tpValue} onChange={e => setTpValue(e.target.value)} placeholder="Target Price"
-                  style={{ width: '100%', backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '8px', color: 'var(--text-dark)', fontSize: '12px', outline: 'none', fontFamily: 'Source Code Pro' }}
-                />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* Take Profit Box */}
+              <div style={{
+                padding: '8px 10px',
+                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-grey)', fontWeight: 500 }}>Take Profit</span>
+                  <span style={{ fontSize: '10px', color: goldAccent, fontWeight: 600, fontFamily: 'Source Code Pro, monospace' }}>Target</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    value={tpValue}
+                    onChange={e => setTpValue(e.target.value)}
+                    placeholder="None"
+                    style={{
+                      width: '75%',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      padding: 0,
+                      color: 'var(--text-dark)',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      fontFamily: 'Source Code Pro, monospace'
+                    }}
+                  />
+                  <span style={{ fontSize: '11px', color: 'var(--text-grey)', fontWeight: 500 }}>USD</span>
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '9px', color: 'var(--text-grey)' }}>STOP LOSS</span>
-                <input
-                  type="number" value={slValue} onChange={e => setSlValue(e.target.value)} placeholder="Stop Price"
-                  style={{ width: '100%', backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '8px', color: 'var(--text-dark)', fontSize: '12px', outline: 'none', fontFamily: 'Source Code Pro' }}
-                />
+
+              {/* Stop Loss Box */}
+              <div style={{
+                padding: '8px 10px',
+                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-grey)', fontWeight: 500 }}>Stop Loss</span>
+                  <span style={{ fontSize: '10px', color: goldAccent, fontWeight: 600, fontFamily: 'Source Code Pro, monospace' }}>Stop</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    value={slValue}
+                    onChange={e => setSlValue(e.target.value)}
+                    placeholder="None"
+                    style={{
+                      width: '75%',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      padding: 0,
+                      color: 'var(--text-dark)',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      fontFamily: 'Source Code Pro, monospace'
+                    }}
+                  />
+                  <span style={{ fontSize: '11px', color: 'var(--text-grey)', fontWeight: 500 }}>USD</span>
+                </div>
               </div>
             </div>
           )}

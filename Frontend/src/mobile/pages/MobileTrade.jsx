@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Chart from '../../components/Chart';
 import MobileLayout from '../components/MobileLayout';
+import { MobilePortfolioContent } from './MobilePortfolio';
 import { 
   MobilePositions,
   MobileOrderPanel, 
@@ -404,102 +405,7 @@ export default function MobileTrade() {
             width: '100%',
             overflow: 'hidden'
           }}>
-            {/* Unified Portfolio Stats + Positions (One Single Div!) */}
-            <div style={{ 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column', 
-              backgroundColor: 'var(--panel-bg)',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-              overflow: 'hidden'
-            }}>
-              {/* Top Summary Header Section */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                padding: '14px 12px',
-                borderBottom: '1px solid var(--border-color)'
-              }}>
-                {/* Account Summary Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '9px', color: 'var(--text-grey)', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.05em' }}>
-                    Account Summary
-                  </span>
-                  <span style={{ fontSize: '8.5px', color: 'var(--gold)', backgroundColor: 'rgba(200, 169, 126, 0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
-                    LIVE ACCOUNT
-                  </span>
-                </div>
-
-                {/* Main Net Worth / Balance Section */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '1px solid rgba(255, 255, 255, 0.03)', paddingBottom: '12px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: 'var(--text-dark)' }}>
-                      $1,965.60
-                    </span>
-                    <span style={{ fontSize: '9px', color: 'var(--text-grey)', marginTop: '2px' }}>
-                      Total Equity (USDC)
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: '#3b82f6' }}>
-                      +$465.60
-                    </span>
-                    <span style={{ fontSize: '9px', color: 'var(--text-grey)', marginTop: '2px' }}>
-                      Unrealized PnL (+31.0%)
-                    </span>
-                  </div>
-                </div>
-
-                {/* Detailed Metrics Grid (Realized PnL, Win Rate, Volume, Wins/Losses) */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px' }}>
-                  
-                  {/* 1. Free Margin */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '8.5px', color: 'var(--text-grey)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Free Margin</span>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: 'var(--text-dark)' }}>
-                      $1,500.00
-                    </span>
-                  </div>
-
-                  {/* 2. Realized PNL */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '8.5px', color: 'var(--text-grey)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Realized PNL</span>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: '#3b82f6' }}>
-                      +$1,799.63
-                    </span>
-                  </div>
-
-                  {/* 3. Total Volume */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '8.5px', color: 'var(--text-grey)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Total Volume</span>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: 'var(--text-dark)' }}>
-                      $203,444.31
-                    </span>
-                  </div>
-
-                  {/* 4. Win Rate */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '8.5px', color: 'var(--text-grey)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Win Rate (35 Tr.)</span>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: 'var(--gold)' }}>
-                      62.8% <span style={{ fontSize: '9.5px', color: 'var(--text-grey)', fontWeight: 'normal', fontFamily: 'Inter, sans-serif' }}>(22W - 13L)</span>
-                    </span>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* Bottom Positions Section inside same parent */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%', overflow: 'hidden' }}>
-                <MobilePositions 
-                  onManagePosition={handleManagePosition} 
-                  isFullPage={true} 
-                />
-              </div>
-            </div>
+            <MobilePortfolioContent />
           </div>
         )}
       </main>

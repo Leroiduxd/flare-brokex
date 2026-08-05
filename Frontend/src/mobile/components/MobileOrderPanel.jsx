@@ -82,6 +82,7 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
   const [commissionBps, setCommissionBps] = useState(10);
   const [minMarginUSD, setMinMarginUSD] = useState(10);
   const [liqThresholdBps, setLiqThresholdBps] = useState(950000);
+  const [focusedInput, setFocusedInput] = useState(null);
 
   // Live price
   const [currentMarkPrice, setCurrentMarkPrice] = useState(isXRP ? 2.45 : 4046.52);
@@ -489,7 +490,8 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
       flexDirection: 'column',
       gap: '10px',
       boxShadow: isInline ? 'none' : '0 -8px 30px rgba(0, 0, 0, 0.5)',
-      width: '100%'
+      width: '100%',
+      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     }}>
       <style>{`
         .no-spinners::-webkit-outer-spin-button,
@@ -610,8 +612,9 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
               backgroundColor: orderType === type ? goldAccentLight : 'transparent',
               color: orderType === type ? goldAccent : 'var(--text-grey)',
               border: `1px solid ${orderType === type ? goldAccent : 'transparent'}`,
-              fontSize: '11px',
-              fontWeight: orderType === type ? 600 : 400,
+              fontSize: '10px',
+              fontWeight: orderType === type ? 600 : 500,
+              letterSpacing: '0.04em',
               textTransform: 'uppercase',
               transition: 'all 0.15s'
             }}
@@ -811,48 +814,69 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
         </div>
       </div>
 
-      {/* TP / SL Toggle and Fields */}
+      {/* TP / SL Toggle and Fields (PC-Matching Stacked Design) */}
       <div style={{
         backgroundColor: 'rgba(255, 255, 255, 0.02)',
-        borderRadius: '8px',
+        borderRadius: '6px',
         border: '1px solid var(--border-color)',
-        padding: '8px 10px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px'
+        overflow: 'hidden'
       }}>
         <div
           onClick={() => setTpSlEnabled(!tpSlEnabled)}
-          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          style={{
+            padding: '10px 12px',
+            display: 'flex',
+            justify: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            width: '100%',
+            borderBottom: tpSlEnabled ? '1px solid var(--border-color)' : 'none'
+          }}
         >
-          <span style={{ fontSize: '11px', color: 'var(--text-dark)', fontWeight: 'bold' }}>Take Profit / Stop Loss</span>
+          <span style={{ fontSize: '11.5px', color: 'var(--text-dark)', fontWeight: 600 }}>Take Profit / Stop Loss</span>
           <div style={{
-            width: '28px',
-            height: '14px',
+            width: '32px',
+            height: '16px',
             backgroundColor: tpSlEnabled ? goldAccent : 'rgba(255,255,255,0.1)',
             borderRadius: '8px',
             position: 'relative',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            flexShrink: 0,
+            marginLeft: 'auto'
           }}>
             <div style={{
-              width: '10px',
-              height: '10px',
+              width: '12px',
+              height: '12px',
               backgroundColor: '#fff',
               borderRadius: '50%',
               position: 'absolute',
               top: '2px',
-              left: tpSlEnabled ? '16px' : '2px',
+              left: tpSlEnabled ? '18px' : '2px',
               transition: 'all 0.2s'
             }} />
           </div>
         </div>
 
         {tpSlEnabled && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {/* Take Profit Box */}
+            <div
+              style={{
+                padding: '6px 8px',
+                borderBottom: '1px solid var(--border-color)',
+                borderLeft: focusedInput === 'tp' ? `2px solid ${goldAccent}` : '2px solid transparent',
+                backgroundColor: focusedInput === 'tp' ? 'rgba(200, 169, 126, 0.04)' : 'transparent',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '9px', color: 'var(--text-grey)' }}>TAKE PROFIT</span>
-                <div style={{ display: 'flex', gap: '4px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-grey)', fontWeight: 500 }}>Take Profit</span>
+                <div style={{ display: 'flex', gap: '6px' }}>
                   {['10%', '25%', '50%', '100%'].map(p => (
                     <span
                       key={p}
@@ -866,10 +890,10 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
                         }
                       }}
                       style={{
-                        fontSize: '9px',
+                        fontSize: '10px',
                         color: goldAccent,
                         cursor: 'pointer',
-                        fontWeight: 'bold',
+                        fontWeight: 600,
                         fontFamily: 'Source Code Pro, monospace'
                       }}>
                       {p}
@@ -877,29 +901,47 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
                   ))}
                 </div>
               </div>
-              <input
-                type="number"
-                className="no-spinners"
-                value={tpPrice}
-                onChange={(e) => setTpPrice(e.target.value)}
-                placeholder="Target Price"
-                style={{
-                  width: '100%',
-                  backgroundColor: 'rgba(0,0,0,0.2)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '4px',
-                  padding: '5px',
-                  color: 'var(--text-dark)',
-                  fontSize: '11px',
-                  outline: 'none',
-                  fontFamily: 'Source Code Pro, monospace'
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '9px', color: 'var(--text-grey)' }}>STOP LOSS</span>
-                <div style={{ display: 'flex', gap: '4px' }}>
+                <input
+                  type="number"
+                  className="no-spinners"
+                  value={tpPrice}
+                  onFocus={() => setFocusedInput('tp')}
+                  onBlur={() => setFocusedInput(null)}
+                  onChange={(e) => setTpPrice(e.target.value)}
+                  placeholder="None"
+                  style={{
+                    width: '75%',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    boxShadow: 'none',
+                    padding: 0,
+                    color: 'var(--text-dark)',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    fontFamily: 'Source Code Pro, monospace'
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: 'var(--text-grey)', fontWeight: 500 }}>USD</span>
+              </div>
+            </div>
+
+            {/* Stop Loss Box */}
+            <div
+              style={{
+                padding: '6px 8px',
+                borderLeft: focusedInput === 'sl' ? `2px solid ${goldAccent}` : '2px solid transparent',
+                backgroundColor: focusedInput === 'sl' ? 'rgba(200, 169, 126, 0.04)' : 'transparent',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-grey)', fontWeight: 500 }}>Stop Loss</span>
+                <div style={{ display: 'flex', gap: '6px' }}>
                   {['10%', '25%', '50%', '70%'].map(p => (
                     <span
                       key={p}
@@ -913,10 +955,10 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
                         }
                       }}
                       style={{
-                        fontSize: '9px',
+                        fontSize: '10px',
                         color: goldAccent,
                         cursor: 'pointer',
-                        fontWeight: 'bold',
+                        fontWeight: 600,
                         fontFamily: 'Source Code Pro, monospace'
                       }}>
                       {p}
@@ -924,24 +966,30 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
                   ))}
                 </div>
               </div>
-              <input
-                type="number"
-                className="no-spinners"
-                value={slPrice}
-                onChange={(e) => setSlPrice(e.target.value)}
-                placeholder="Stop Price"
-                style={{
-                  width: '100%',
-                  backgroundColor: 'rgba(0,0,0,0.2)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '4px',
-                  padding: '5px',
-                  color: 'var(--text-dark)',
-                  fontSize: '11px',
-                  outline: 'none',
-                  fontFamily: 'Source Code Pro, monospace'
-                }}
-              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <input
+                  type="number"
+                  className="no-spinners"
+                  value={slPrice}
+                  onFocus={() => setFocusedInput('sl')}
+                  onBlur={() => setFocusedInput(null)}
+                  onChange={(e) => setSlPrice(e.target.value)}
+                  placeholder="None"
+                  style={{
+                    width: '75%',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    boxShadow: 'none',
+                    padding: 0,
+                    color: 'var(--text-dark)',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    fontFamily: 'Source Code Pro, monospace'
+                  }}
+                />
+                <span style={{ fontSize: '11px', color: 'var(--text-grey)', fontWeight: 500 }}>USD</span>
+              </div>
             </div>
           </div>
         )}

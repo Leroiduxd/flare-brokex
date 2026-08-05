@@ -173,8 +173,8 @@ export default function MobileLayout({ children, disablePadding = false }) {
       {/* Premium Top Navigation Bar */}
       <header className="mobile-header">
         {/* Left: Logo Only */}
-        <Link to="/" className="mobile-logo" style={{ flexShrink: 0 }}>
-          <img src="/logo.svg" alt="Brokex" style={{ width: '22px', height: '22px' }} />
+        <Link to="/" className="mobile-logo" style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          <img src="/logo.png" alt="Brokex" style={{ width: '22px', height: 'auto', maxHeight: '24px', display: 'block', objectFit: 'contain' }} />
         </Link>
 
         {/* Center: Gliding price ticker marquee */}

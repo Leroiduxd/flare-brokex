@@ -17,7 +17,7 @@ const erc20Abi = [
   }
 ];
 
-export default function MobilePortfolio() {
+export function MobilePortfolioContent() {
   const { address, isConnected } = useAccount();
 
   // Position Manager Modal State
@@ -36,21 +36,21 @@ export default function MobilePortfolio() {
     args: address ? [address] : undefined,
     chainId: 114,
     query: {
-      enabled: Boolean(address),
+      enabled: Boolean(address && isConnected),
       refetchInterval: 5000,
     },
   });
 
   const freeMarginNum = (() => {
-    if (!address || rawUsdcBalance === undefined || rawUsdcBalance === null) return 0;
-    try {
-      return Number(rawUsdcBalance.toString()) / 1e6;
-    } catch (e) {
-      return 0;
+    if (isConnected && rawUsdcBalance !== undefined && rawUsdcBalance !== null) {
+      try {
+        return Number(rawUsdcBalance.toString()) / 1e6;
+      } catch (e) {}
     }
+    return 0;
   })();
 
-  // 2. Fetch Trader Trades from /api/trades/trader/:address
+  // 2. Fetch Trader Trades ONLY for connected address
   useEffect(() => {
     if (!address || !isConnected) {
       setRawApiTrades([]);
@@ -67,9 +67,11 @@ export default function MobilePortfolio() {
           } else {
             setRawApiTrades([]);
           }
+        } else {
+          setRawApiTrades([]);
         }
       } catch (err) {
-        console.error("MobilePortfolio fetch error:", err);
+        setRawApiTrades([]);
       }
     };
 
@@ -86,8 +88,9 @@ export default function MobilePortfolio() {
     }
   }, [liveMarkPrice]);
 
-  // Compute live open trades metrics (Locked Capital & Unrealized PnL)
-  const openTrades = rawApiTrades.filter(t => Number(t.state) === 1);
+  // Compute live open trades metrics for connected user
+  const openTrades = isConnected ? rawApiTrades.filter(t => Number(t.state) === 1) : [];
+  const closedTrades = isConnected ? rawApiTrades.filter(t => Number(t.state) === 2 || Number(t.state) === 4) : [];
 
   let lockedCapitalNum = 0;
   let totalUnrealizedPnlNum = 0;
@@ -110,9 +113,26 @@ export default function MobilePortfolio() {
     }
   });
 
-  const totalMarginNum = freeMarginNum + lockedCapitalNum;
-  const pnlPct = lockedCapitalNum > 0 ? (totalUnrealizedPnlNum / lockedCapitalNum) * 100 : (freeMarginNum > 0 ? (totalUnrealizedPnlNum / freeMarginNum) * 100 : 0);
-  const isPnlPos = totalUnrealizedPnlNum >= 0;
+  let totalRealizedPnlNum = 0;
+  let totalVolumeNum = 0;
+  let winsCount = 0;
+
+  closedTrades.forEach(raw => {
+    const marginNum = raw.margin ? Number(raw.margin) / 1e6 : 0;
+    const leverageNum = Number(raw.leverage || 10);
+    const sizeUsdNum = marginNum * leverageNum;
+    const pnlVal = raw.pnl ? Number(raw.pnl) / 1e6 : (raw.realizedPnl ? Number(raw.realizedPnl) / 1e6 : 0);
+
+    totalRealizedPnlNum += pnlVal;
+    totalVolumeNum += sizeUsdNum;
+    if (pnlVal > 0) winsCount++;
+  });
+
+  const winRatePct = closedTrades.length > 0 ? (winsCount / closedTrades.length) * 100 : 0;
+  const equityNum = isConnected ? (freeMarginNum + lockedCapitalNum + totalUnrealizedPnlNum) : 0;
+  const pnlPct = lockedCapitalNum > 0 ? (totalUnrealizedPnlNum / lockedCapitalNum) * 100 : 0;
+  const isUnrealizedPos = totalUnrealizedPnlNum >= 0;
+  const isRealizedPos = totalRealizedPnlNum >= 0;
 
   const handleManagePosition = (position, tab) => {
     setSelectedPosition(position);
@@ -121,76 +141,123 @@ export default function MobilePortfolio() {
   };
 
   return (
-    <MobileLayout>
-      {/* Premium Portfolio Overview Card */}
+    <div style={{ 
+      flex: 1, 
+      display: 'flex', 
+      flexDirection: 'column', 
+      backgroundColor: 'var(--panel-bg)',
+      borderRadius: '8px',
+      border: '1px solid var(--border-color)',
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+      overflow: 'hidden',
+      width: '100%',
+      height: '100%'
+    }}>
+      {/* Top Summary Header Section */}
       <div style={{
-        background: 'var(--panel-bg)',
-        border: '1px solid var(--panel-border)',
-        borderRadius: '12px',
-        padding: '16px',
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+        padding: '14px 12px',
+        borderBottom: '1px solid var(--border-color)'
       }}>
-        <span style={{ fontSize: '10px', color: 'var(--text-grey)', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.05em' }}>
-          Account Summary
-        </span>
+        {/* Account Summary Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '9px', color: 'var(--text-grey)', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.05em' }}>
+            Account Summary
+          </span>
+          <span style={{ 
+            fontSize: '8.5px', 
+            color: isConnected ? '#10b981' : 'var(--gold)', 
+            backgroundColor: isConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(200, 169, 126, 0.1)', 
+            padding: '2px 6px', 
+            borderRadius: '4px', 
+            fontWeight: 'bold' 
+          }}>
+            {isConnected ? 'LIVE ACCOUNT' : 'DISCONNECTED'}
+          </span>
+        </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        {/* Main Net Worth / Balance Section */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '1px solid rgba(255, 255, 255, 0.03)', paddingBottom: '12px' }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: 'var(--text-dark)' }}>
-              ${freeMarginNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <span style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: 'var(--text-dark)' }}>
+              ${equityNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
             <span style={{ fontSize: '9px', color: 'var(--text-grey)', marginTop: '2px' }}>
-              Free Margin (USDC)
+              Total Equity (USDC)
             </span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <span style={{ fontSize: '18px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: isPnlPos ? '#3b82f6' : '#ef4444' }}>
-              {isPnlPos ? '+' : ''}${totalUnrealizedPnlNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <span style={{ fontSize: '14px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: isConnected && isUnrealizedPos ? '#3b82f6' : (isConnected ? '#ef4444' : 'var(--text-grey)') }}>
+              {isConnected && isUnrealizedPos ? '+' : ''}${totalUnrealizedPnlNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
             <span style={{ fontSize: '9px', color: 'var(--text-grey)', marginTop: '2px' }}>
-              Unrealized PnL ({isPnlPos ? '+' : ''}{pnlPct.toFixed(2)}%)
+              Unrealized PnL ({isConnected && isUnrealizedPos ? '+' : ''}{pnlPct.toFixed(2)}%)
             </span>
           </div>
         </div>
 
-        <div style={{ height: '1px', backgroundColor: 'var(--border-color)' }} />
-
-        {/* Mini stats grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '11px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-grey)' }}>Locked Capital:</span>
-            <span style={{ fontWeight: '600', color: 'var(--text-dark)', fontFamily: 'Source Code Pro' }}>
-              ${lockedCapitalNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        {/* Detailed Metrics Grid (Realized PnL, Win Rate, Volume, Wins/Losses) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px' }}>
+          {/* 1. Free Margin */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '8.5px', color: 'var(--text-grey)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Free Margin</span>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: 'var(--text-dark)' }}>
+              ${freeMarginNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-grey)' }}>Total Account:</span>
-            <span style={{ fontWeight: '600', color: 'var(--text-dark)', fontFamily: 'Source Code Pro' }}>
-              ${totalMarginNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+          {/* 2. Realized PNL */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '8.5px', color: 'var(--text-grey)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Realized PNL</span>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: isConnected && isRealizedPos ? '#3b82f6' : (isConnected ? '#ef4444' : 'var(--text-grey)') }}>
+              {isConnected && isRealizedPos ? '+' : ''}${totalRealizedPnlNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          {/* 3. Total Volume */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '8.5px', color: 'var(--text-grey)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Total Volume</span>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: 'var(--text-dark)' }}>
+              ${totalVolumeNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          {/* 4. Win Rate */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '8.5px', color: 'var(--text-grey)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Win Rate ({closedTrades.length} Tr.)</span>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: 'var(--gold)' }}>
+              {winRatePct.toFixed(1)}% <span style={{ fontSize: '9.5px', color: 'var(--text-grey)', fontWeight: 'normal', fontFamily: 'Inter, sans-serif' }}>({winsCount}W - {closedTrades.length - winsCount}L)</span>
             </span>
           </div>
         </div>
       </div>
 
-      {/* Actual Positions, Orders, and History List */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      {/* Bottom Positions Section inside same parent */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%', overflow: 'hidden' }}>
         <MobilePositions 
           onManagePosition={handleManagePosition} 
           isFullPage={true} 
         />
       </div>
 
-      {/* Dialog modal overlays for margin / close action */}
+      {/* Position Manager Modal Overlay */}
       <MobilePositionManager
         isOpen={isPosManagerOpen}
         onClose={() => setIsPosManagerOpen(false)}
         position={selectedPosition}
         initialTab={posManagerTab}
       />
+    </div>
+  );
+}
+
+export default function MobilePortfolio() {
+  return (
+    <MobileLayout>
+      <MobilePortfolioContent />
     </MobileLayout>
   );
 }
