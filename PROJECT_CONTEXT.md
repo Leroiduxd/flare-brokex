@@ -11,10 +11,12 @@ Ce document sert de guide et de contexte permanent pour les prochains agents AI 
    - **NE JAMAIS** exécuter des commandes destructives telles que `git clean -fd`, `git reset --hard` sans vérifier les fichiers non suivis, ou effacer `database.sqlite`.
    - Les fichiers `.gitignore` dans la racine et dans `Backend/` doivent **TOUJOURS** ignorer `*.sqlite`, `database.sqlite`, `Backend/data/` et `.env`.
 
-2. **DOMAINE PUBLIC & REVERSE PROXY NGINX** :
-   - **Domaine API officiel** : `https://apiflare.brokex.trade`
-   - **Configuration Nginx VPS** : `/etc/nginx/sites-available/apiflare.brokex.trade`
-   - Nginx redirige la totalité du trafic HTTPS de `apiflare.brokex.trade` vers le serveur local Node.js sur le port **1234** (`proxy_pass http://127.0.0.1:1234;`).
+2. **DOMAINES PUBLICS & REVERSE PROXY NGINX** :
+   - **Frontend App officiel** : `https://flare.brokex.trade`
+     - Dossier de build statique : `/home/ubuntu/apps/flare-brokex/Frontend/dist`
+     - Configuration Nginx : `/etc/nginx/sites-available/flare.brokex.trade` (SPA Fallback avec SSL Certbot).
+   - **Backend API officiel** : `https://apiflare.brokex.trade`
+     - Configuration Nginx : `/etc/nginx/sites-available/apiflare.brokex.trade` (Proxy pass vers `http://127.0.0.1:1234`).
 
 3. **GHOST & PROCESSUS PM2 SUR LE VPS (`ubuntu@51.178.43.25`)** :
    - **Service Backend PM2 Actif** : **ID `2`** (`brokex-backend`)
