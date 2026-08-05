@@ -107,7 +107,7 @@ function PositionManagerInner({ position, isOpen, onClose, livePrice }) {
       const xrpHash = import.meta.env.VITE_XRP_ASSET_HASH || '0xfe136bfb1b369cfb823e20ecbc952f4ebac08b535d58fbc83b0f5b25208f0298';
 
       const rawAssetStr = String(position.assetHash || position.assetKey || position.asset || '').toLowerCase();
-      const isXRP = rawAssetStr.includes('xrp') || rawAssetStr === xrpHash.toLowerCase() || rawAssetStr === '0x0aa350274fca23e3884be19de980198b13f2ea293ea26921055ab6a20770c7f2';
+      const isXRP = rawAssetStr.includes('xrp') || rawAssetStr === xrpHash.toLowerCase();
 
       const targetAssetHash = isXRP ? xrpHash : goldHash;
       const targetAssetKey = isXRP ? 'XRP' : 'GOLD';

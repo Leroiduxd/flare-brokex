@@ -79,14 +79,18 @@ export function base64ToHex(b64) {
 
 // Helper to fetch TEE risk proof signed by teeSigner key
 export async function fetchTeeProof(assetHashOrKey) {
-  const isKey = assetHashOrKey === 'GOLD' || assetHashOrKey === 'XRP';
-  const targetHash = isKey
-    ? (assetHashOrKey === 'XRP' ? (import.meta.env.VITE_XRP_ASSET_HASH || '0xfe136bfb1b369cfb823e20ecbc952f4ebac08b535d58fbc83b0f5b25208f0298') : (import.meta.env.VITE_GOLD_ASSET_HASH || '0x5656b83664973a9b4e2c18d45b7578e6746ee4a565da62e3ac579fb9e05acc55'))
-    : formatAssetHashHex(assetHashOrKey || import.meta.env.VITE_GOLD_ASSET_HASH || '0x5656b83664973a9b4e2c18d45b7578e6746ee4a565da62e3ac579fb9e05acc55');
+  const isXRPKey = String(assetHashOrKey).toUpperCase().includes('XRP');
+  const isGoldKey = String(assetHashOrKey).toUpperCase().includes('GOLD') || String(assetHashOrKey).toUpperCase().includes('XAU');
+  const targetHash = isXRPKey 
+    ? (import.meta.env.VITE_XRP_ASSET_HASH || '0xfe136bfb1b369cfb823e20ecbc952f4ebac08b535d58fbc83b0f5b25208f0298')
+    : (isGoldKey ? (import.meta.env.VITE_GOLD_ASSET_HASH || '0x5656b83664973a9b4e2c18d45b7578e6746ee4a565da62e3ac579fb9e05acc55')
+    : formatAssetHashHex(assetHashOrKey || import.meta.env.VITE_GOLD_ASSET_HASH || '0x5656b83664973a9b4e2c18d45b7578e6746ee4a565da62e3ac579fb9e05acc55'));
 
+  const normalizedTargetHash = formatAssetHashHex(targetHash);
   let proofObj = null;
+
   const urlsToTry = [
-    targetHash ? `${apiBackendBase}/api/tee-proof?assetHash=${targetHash}` : null,
+    normalizedTargetHash ? `${apiBackendBase}/api/tee-proof?assetHash=${normalizedTargetHash}` : null,
     `${teeApiBase}/risk-proofs`,
     `${apiBackendBase}/api/risk-proofs`
   ].filter(Boolean);
@@ -100,31 +104,32 @@ export async function fetchTeeProof(assetHashOrKey) {
         const data = await res.json();
         if (data) {
           let candidate = null;
-          if (data.sig || data.signature) {
+          if ((data.sig || data.signature) && data.assetHash && formatAssetHashHex(data.assetHash) === normalizedTargetHash) {
             candidate = data;
           } else if (typeof data === 'object') {
-            const entries = Object.entries(data);
-            for (const [key, item] of entries) {
-              if (isKey && key.toUpperCase() === assetHashOrKey.toUpperCase()) {
-                candidate = item;
-                break;
+            const keyToLookFor = isXRPKey ? 'XRP' : 'GOLD';
+            if (data[keyToLookFor] && data[keyToLookFor].assetHash && formatAssetHashHex(data[keyToLookFor].assetHash) === normalizedTargetHash) {
+              candidate = data[keyToLookFor];
+            } else {
+              const entries = Object.entries(data);
+              for (const [key, item] of entries) {
+                if (item && item.assetHash && formatAssetHashHex(item.assetHash) === normalizedTargetHash) {
+                  candidate = item;
+                  break;
+                }
               }
-              if (item && item.assetHash && targetHash && formatAssetHashHex(item.assetHash) === targetHash) {
-                candidate = item;
-                break;
-              }
-            }
-            if (!candidate) {
-              candidate = data.GOLD || data.XRP || (entries[0] ? entries[0][1] : null);
             }
           }
 
-          // Check if candidate proof signature exists and timestamp is fresh (< 50 seconds old)
+          // Check if candidate proof signature exists, matches target hash, and timestamp is fresh (< 60 seconds old)
           if (candidate && (candidate.sig || candidate.signature)) {
-            const pTime = Number(candidate.timestamp || 0);
-            if (pTime > 0 && (nowSec - pTime < 50)) {
-              proofObj = candidate;
-              break;
+            const candHash = candidate.assetHash ? formatAssetHashHex(candidate.assetHash) : normalizedTargetHash;
+            if (candHash === normalizedTargetHash) {
+              const pTime = Number(candidate.timestamp || 0);
+              if (pTime > 0 && (nowSec - pTime < 60)) {
+                proofObj = candidate;
+                break;
+              }
             }
           }
         }
@@ -145,13 +150,13 @@ export async function fetchTeeProof(assetHashOrKey) {
 
       const encoded = encodeAbiParameters(
         parseAbiParameters('bytes32, uint256, uint256, uint256, uint256, uint256'),
-        [targetHash, maxOILong, maxOIShort, spreadLong, spreadShort, timestamp]
+        [normalizedTargetHash, maxOILong, maxOIShort, spreadLong, spreadShort, timestamp]
       );
       const hash = keccak256(encoded);
       const sig = await account.signMessage({ message: { raw: hash } });
 
       return {
-        assetHash: targetHash,
+        assetHash: normalizedTargetHash,
         maxOILong: "37500000000",
         maxOIShort: "37500000000",
         spreadLong: 1000,
@@ -164,12 +169,11 @@ export async function fetchTeeProof(assetHashOrKey) {
     }
   }
 
-  const resultHash = proofObj?.assetHash ? formatAssetHashHex(proofObj.assetHash) : targetHash;
   const rawSig = proofObj?.sig || proofObj?.signature || "0x";
   const formattedSig = base64ToHex(rawSig);
 
   return {
-    assetHash: resultHash,
+    assetHash: normalizedTargetHash,
     maxOILong: proofObj?.maxOILong !== undefined ? String(proofObj.maxOILong) : "37500000000",
     maxOIShort: proofObj?.maxOIShort !== undefined ? String(proofObj.maxOIShort) : "37500000000",
     spreadLong: proofObj?.spreadLong !== undefined ? Number(proofObj.spreadLong) : 1000,
@@ -599,7 +603,7 @@ export default function OrderPanel() {
 
       const coreAddress = import.meta.env.VITE_BROKEX_CORE_ADDRESS || '0x5620dA2B418577b94a74B121eD61B5B84962AC93';
       const goldHash = import.meta.env.VITE_GOLD_ASSET_HASH || '0x5656b83664973a9b4e2c18d45b7578e6746ee4a565da62e3ac579fb9e05acc55';
-      const xrpHash = import.meta.env.VITE_XRP_ASSET_HASH || '0x0aa350274fca23e3884be19de980198b13f2ea293ea26921055ab6a20770c7f2';
+      const xrpHash = import.meta.env.VITE_XRP_ASSET_HASH || '0xfe136bfb1b369cfb823e20ecbc952f4ebac08b535d58fbc83b0f5b25208f0298';
       const assetHash = isXRP ? xrpHash : goldHash;
 
       const direction = side === 'buy' ? 1 : 0; // 1 = LONG, 0 = SHORT
@@ -664,7 +668,7 @@ export default function OrderPanel() {
       }
 
       if (orderType === 'market') {
-        const proof = await fetchTeeProof(selectedAssetKey);
+        const proof = await fetchTeeProof(isXRP ? 'XRP' : 'GOLD');
         const riskProofStruct = {
           assetHash: assetHash,
           maxOILong: BigInt(proof.maxOILong || "37500000000"),

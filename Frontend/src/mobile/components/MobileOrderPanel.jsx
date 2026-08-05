@@ -392,7 +392,7 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
       }
 
       const goldHash = import.meta.env.VITE_GOLD_ASSET_HASH || '0x5656b83664973a9b4e2c18d45b7578e6746ee4a565da62e3ac579fb9e05acc55';
-      const xrpHash = import.meta.env.VITE_XRP_ASSET_HASH || '0x0aa350274fca23e3884be19de980198b13f2ea293ea26921055ab6a20770c7f2';
+      const xrpHash = import.meta.env.VITE_XRP_ASSET_HASH || '0xfe136bfb1b369cfb823e20ecbc952f4ebac08b535d58fbc83b0f5b25208f0298';
       const assetHash = isXRP ? xrpHash : goldHash;
 
       const direction = side === 'buy' ? 1 : 0; // 1 = LONG, 0 = SHORT
@@ -455,7 +455,7 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
       }
 
       if (orderType === 'market') {
-        const proof = await fetchTeeProof(selectedAssetKey);
+        const proof = await fetchTeeProof(isXRP ? 'XRP' : 'GOLD');
         const riskProofStruct = {
           assetHash: assetHash,
           maxOILong: BigInt(proof.maxOILong || "37500000000"),

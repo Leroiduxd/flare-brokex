@@ -72,6 +72,18 @@ export default function VaultChartsGrid({ metricsData = [], snapshotData = null 
   const rawUsageBps = latestMetric.vaultUsageBps || vaultSnap.vaultUsageBps;
   const utilization = rawUsageBps !== undefined ? (Number(rawUsageBps) / 100).toFixed(2) : '5.92';
 
+  const rawTotalVaultUSDC = latestMetric.totalVaultUSDC || vaultSnap.totalVaultUSDC;
+  const totalVaultUSDCVal = scale1e6(rawTotalVaultUSDC, 10032.45);
+  const totalVaultUSDCStr = totalVaultUSDCVal >= 1e6 
+    ? `$${(totalVaultUSDCVal / 1e6).toFixed(2)}M` 
+    : `$${totalVaultUSDCVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const rawLockedCapital = latestMetric.totalLockedCapital || vaultSnap.totalLockedCapital;
+  const usedCapitalVal = scale1e6(rawLockedCapital, 0);
+  const usedCapitalStr = usedCapitalVal >= 1e6 
+    ? `$${(usedCapitalVal / 1e6).toFixed(2)}M` 
+    : `$${usedCapitalVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   // 4. Open Interest (Long & Short) per asset
   const currentOi = getOiValues(latestMetric, oiAssetFilter);
   const oiLongVal = currentOi.long;
@@ -369,6 +381,11 @@ export default function VaultChartsGrid({ metricsData = [], snapshotData = null 
             </span>
             <span style={{ fontSize: '11px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: redColor }}>
               {utilization}%
+            </span>
+            <span style={{ fontSize: '10px', fontFamily: 'Source Code Pro, monospace' }}>
+              <span style={{ color: goldAccent }}>Vault: {totalVaultUSDCStr}</span>
+              <span style={{ color: 'var(--text-grey)', margin: '0 4px' }}>/</span>
+              <span style={{ color: redColor }}>Used: {usedCapitalStr}</span>
             </span>
           </div>
           {renderTfButtons(tfUtilization, setTfUtilization)}
