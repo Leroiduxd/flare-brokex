@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNotifications } from '../../context/NotificationContext';
+import { usePriceStream } from '../../context/PriceContext';
 import { useAccount, useWriteContract, useReadContract } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import BrokexCoreAbi from '../../abi/BrokexCore.json';
@@ -254,39 +255,13 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
     };
   }, [selectedAssetKey, selectedAssetBadge]);
 
-  // Stream live prices via SSE for selected symbol
+  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
+
   useEffect(() => {
-    let eventSource = null;
-    const connectSSE = () => {
-      try {
-        eventSource = new EventSource(`${apiBackendBase}/v1/shims/tradingview/streaming?symbol=${encodeURIComponent(selectedAssetSymbol)}`);
-        eventSource.onmessage = (event) => {
-          if (!event.data) return;
-          try {
-            const data = JSON.parse(event.data);
-            const p = parseFloat(data.p || data.priceUSD || data.price || data.close || data.ask);
-            if (!isNaN(p) && p > 0) {
-              setCurrentMarkPrice(p);
-            }
-          } catch (err) {
-            console.error("MobileOrderPanel SSE parse error:", err);
-          }
-        };
-
-        eventSource.onerror = () => {
-          if (eventSource) eventSource.close();
-          setTimeout(connectSSE, 4000);
-        };
-      } catch (err) {
-        console.error("MobileOrderPanel SSE connect error:", err);
-      }
-    };
-
-    connectSSE();
-    return () => {
-      if (eventSource) eventSource.close();
-    };
-  }, [selectedAssetSymbol]);
+    if (liveMarkPrice > 0) {
+      setCurrentMarkPrice(liveMarkPrice);
+    }
+  }, [liveMarkPrice]);
 
   if (!isOpen) return null;
 

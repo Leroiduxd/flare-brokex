@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { usePriceStream } from '../../context/PriceContext';
 
 const TICKER_ITEMS = [
   { symbol: 'BTC', price: '$78,207', change: '-1.1%', isUp: false },
@@ -21,37 +22,22 @@ export default function MobileLayout({ children, disablePadding = false }) {
   const [liveGoldPrice, setLiveGoldPrice] = useState('$4,046.52');
   const [liveGoldChange, setLiveGoldChange] = useState('+0.12%');
 
-  // Stream live Gold price via SSE
-  useEffect(() => {
-    let eventSource = null;
-    const apiBase = import.meta.env.VITE_FLARE_API_URL || 'https://apiflare.brokex.trade';
-    try {
-      eventSource = new EventSource(`${apiBase}/v1/shims/tradingview/streaming`);
-      eventSource.onmessage = (event) => {
-        if (!event.data) return;
-        try {
-          const data = JSON.parse(event.data);
-          const priceVal = parseFloat(data.p || data.priceUSD || data.price);
-          if (!isNaN(priceVal) && priceVal > 0) {
-            const formatted = `$${priceVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            setLiveGoldPrice(prev => {
-              const prevNum = parseFloat((prev || '0').replace(/[^0-9.]/g, ''));
-              if (!isNaN(prevNum) && prevNum > 0 && priceVal !== prevNum) {
-                const diffPct = ((priceVal - prevNum) / prevNum) * 100;
-                const sign = diffPct >= 0 ? '+' : '';
-                setLiveGoldChange(`${sign}${diffPct.toFixed(2)}%`);
-              }
-              return formatted;
-            });
-          }
-        } catch (err) {}
-      };
-    } catch (err) {}
+  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
 
-    return () => {
-      if (eventSource) eventSource.close();
-    };
-  }, []);
+  useEffect(() => {
+    if (liveMarkPrice > 0) {
+      const formatted = `$${liveMarkPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      setLiveGoldPrice(prev => {
+        const prevNum = parseFloat((prev || '0').replace(/[^0-9.]/g, ''));
+        if (!isNaN(prevNum) && prevNum > 0 && liveMarkPrice !== prevNum) {
+          const diffPct = ((liveMarkPrice - prevNum) / prevNum) * 100;
+          const sign = diffPct >= 0 ? '+' : '';
+          setLiveGoldChange(`${sign}${diffPct.toFixed(2)}%`);
+        }
+        return formatted;
+      });
+    }
+  }, [liveMarkPrice]);
 
   const tickerItems = [
     { symbol: 'XAU', price: liveGoldPrice, change: liveGoldChange, isUp: !liveGoldChange.startsWith('-') },

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { NotificationProvider } from './context/NotificationContext'
+import { PriceProvider } from './context/PriceContext'
 import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit'
@@ -21,7 +22,9 @@ createRoot(document.getElementById('root')).render(
           overlayBlur: 'small',
         })}>
           <NotificationProvider>
-            <App />
+            <PriceProvider>
+              <App />
+            </PriceProvider>
           </NotificationProvider>
         </RainbowKitProvider>
       </QueryClientProvider>

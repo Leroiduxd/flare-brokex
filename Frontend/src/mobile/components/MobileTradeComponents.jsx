@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useNotifications } from '../../context/NotificationContext';
+import { usePriceStream } from '../../context/PriceContext';
 import { fetchTeeProof, closePositionMarketAbi } from '../../components/OrderPanel';
 import MobileTradeHeader from './MobileTradeHeader';
 import MobilePositions from './MobilePositions';
@@ -54,44 +55,22 @@ export function MobileTopNav({ activeMarketInfo = {}, setIsMarketSelectorOpen })
     return () => clearInterval(interval);
   }, [apiBase]);
 
-  // 2. Connect SSE live price streaming
-  useEffect(() => {
-    let eventSource = null;
-    const connectSSE = () => {
-      const targetUrl = `${apiBase}/v1/shims/tradingview/streaming`;
-      try {
-        eventSource = new EventSource(targetUrl);
-        eventSource.onmessage = (event) => {
-          if (!event.data) return;
-          try {
-            const data = JSON.parse(event.data);
-            const priceVal = parseFloat(data.p || data.priceUSD || data.price || data.close || data.ask);
-            if (!isNaN(priceVal) && priceVal > 0) {
-              const formattedPrice = priceVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-              setLivePrice(prev => {
-                const prevNum = parseFloat((prev || '0').replace(/,/g, ''));
-                if (!isNaN(prevNum) && prevNum > 0 && priceVal !== prevNum) {
-                  const diffPct = ((priceVal - prevNum) / prevNum) * 100;
-                  const sign = diffPct >= 0 ? '+' : '';
-                  setPriceChange(`${sign}${diffPct.toFixed(2)}%`);
-                }
-                return formattedPrice;
-              });
-            }
-          } catch (err) {}
-        };
-        eventSource.onerror = () => {
-          if (eventSource) eventSource.close();
-          setTimeout(connectSSE, 4000);
-        };
-      } catch (err) {}
-    };
+  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
 
-    connectSSE();
-    return () => {
-      if (eventSource) eventSource.close();
-    };
-  }, [apiBase]);
+  useEffect(() => {
+    if (liveMarkPrice > 0) {
+      const formattedPrice = liveMarkPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      setLivePrice(prev => {
+        const prevNum = parseFloat((prev || '0').replace(/,/g, ''));
+        if (!isNaN(prevNum) && prevNum > 0 && liveMarkPrice !== prevNum) {
+          const diffPct = ((liveMarkPrice - prevNum) / prevNum) * 100;
+          const sign = diffPct >= 0 ? '+' : '';
+          setPriceChange(`${sign}${diffPct.toFixed(2)}%`);
+        }
+        return formattedPrice;
+      });
+    }
+  }, [liveMarkPrice]);
 
   // Compute exact dynamic stats matching TopNav.jsx
   const goldSnap = snapshotData?.assets?.GOLD?.snapshot || snapshotData?.assets?.GOLD || snapshotData?.assets?.XAU || null;

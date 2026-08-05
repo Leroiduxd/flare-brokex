@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useNotifications } from '../../context/NotificationContext';
+import { usePriceStream } from '../../context/PriceContext';
 import PositionManager from '../../components/PositionManager';
 import { cancelOrderAbi, closePositionMarketAbi, fetchTeeProof } from '../../components/OrderPanel';
 
@@ -48,44 +49,16 @@ export default function MobilePositions({ onManagePosition, isFullPage = false }
     }
   };
 
-  // 1. SSE Real-time Price Streaming from API for both GOLD & XRP
-  useEffect(() => {
-    let eventSource = null;
-    const connectSSE = () => {
-      const targetUrl = `${apiBase}/v1/shims/tradingview/streaming`;
-      try {
-        eventSource = new EventSource(targetUrl);
-        eventSource.onmessage = (event) => {
-          if (!event.data) return;
-          try {
-            const data = JSON.parse(event.data);
-            const priceVal = parseFloat(data.p || data.priceUSD || data.price || data.close);
-            const sym = String(data.symbol || data.name || data.s || '').toUpperCase();
-            if (!isNaN(priceVal) && priceVal > 0) {
-              if (sym.includes('XRP')) {
-                setLivePrices(prev => ({ ...prev, XRP: priceVal }));
-              } else if (sym.includes('XAU') || sym.includes('GOLD') || sym.includes('METAL') || !sym) {
-                setLivePrices(prev => ({ ...prev, GOLD: priceVal }));
-              }
-            }
-          } catch (err) {
-            console.error("MobilePositions SSE parse error:", err);
-          }
-        };
-        eventSource.onerror = () => {
-          if (eventSource) eventSource.close();
-          setTimeout(connectSSE, 4000);
-        };
-      } catch (err) {
-        console.error("MobilePositions SSE connect error:", err);
-      }
-    };
+  const { prices } = usePriceStream();
 
-    connectSSE();
-    return () => {
-      if (eventSource) eventSource.close();
-    };
-  }, []);
+  useEffect(() => {
+    if (prices) {
+      setLivePrices(prev => ({
+        ...prev,
+        ...prices
+      }));
+    }
+  }, [prices]);
 
   // Listen to asset price updates from UI events
   useEffect(() => {

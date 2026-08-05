@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount, useReadContract } from 'wagmi';
+import { usePriceStream } from '../../context/PriceContext';
 import MobileLayout from '../components/MobileLayout';
 import { MobilePositions, MobilePositionManager } from '../components/MobileTradeComponents';
 
@@ -77,26 +78,13 @@ export default function MobilePortfolio() {
     return () => clearInterval(interval);
   }, [address, isConnected]);
 
-  // 3. SSE Price Streaming for live PnL calculation
+  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
+
   useEffect(() => {
-    let eventSource = null;
-    try {
-      eventSource = new EventSource(`${apiBase}/v1/shims/tradingview/streaming`);
-      eventSource.onmessage = (event) => {
-        if (!event.data) return;
-        try {
-          const data = JSON.parse(event.data);
-          const priceVal = parseFloat(data.p || data.priceUSD || data.price);
-          if (!isNaN(priceVal) && priceVal > 0) {
-            setLivePrice(priceVal);
-          }
-        } catch (err) {}
-      };
-    } catch (err) {}
-    return () => {
-      if (eventSource) eventSource.close();
-    };
-  }, []);
+    if (liveMarkPrice > 0) {
+      setLivePrice(liveMarkPrice);
+    }
+  }, [liveMarkPrice]);
 
   // Compute live open trades metrics (Locked Capital & Unrealized PnL)
   const openTrades = rawApiTrades.filter(t => Number(t.state) === 1);

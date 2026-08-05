@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { usePriceStream } from '../context/PriceContext';
 
 // Backend Constants
 // const STATE_ORDER      = 0;
@@ -22,32 +23,16 @@ export default function OrderBook() {
 
   const apiBase = import.meta.env.VITE_FLARE_API_URL || 'https://apiflare.brokex.trade';
 
-  // 1. Listen to SSE live prices for both GOLD and XRP
+  const { prices } = usePriceStream();
+
   useEffect(() => {
-    if (!apiBase) return;
-    let eventSource = null;
-    try {
-      eventSource = new EventSource(`${apiBase}/v1/shims/tradingview/streaming`);
-      eventSource.onmessage = (event) => {
-        if (!event.data) return;
-        try {
-          const data = JSON.parse(event.data);
-          const priceVal = parseFloat(data.p || data.priceUSD || data.price || data.close);
-          const sym = String(data.symbol || data.name || data.s || '').toUpperCase();
-          if (!isNaN(priceVal) && priceVal > 0) {
-            if (sym.includes('XRP')) {
-              setLivePrices(prev => ({ ...prev, XRP: priceVal }));
-            } else if (sym.includes('XAU') || sym.includes('GOLD') || sym.includes('METAL') || !sym) {
-              setLivePrices(prev => ({ ...prev, GOLD: priceVal }));
-            }
-          }
-        } catch (err) {}
-      };
-    } catch (err) {}
-    return () => {
-      if (eventSource) eventSource.close();
-    };
-  }, [apiBase]);
+    if (prices) {
+      setLivePrices(prev => ({
+        ...prev,
+        ...prices
+      }));
+    }
+  }, [prices]);
 
   // Listen to asset price updates from UI events
   useEffect(() => {

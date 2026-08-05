@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, ColorType, CandlestickSeries, AreaSeries } from 'lightweight-charts';
+import { usePriceStream } from '../context/PriceContext';
 
 const RESOLUTION_MAP = {
   '1m': '1',
@@ -301,87 +302,52 @@ export default function Chart({ symbol: initialSymbol = 'Metal.XAU/USD' }) {
     };
   }, [chartInstance, activeTimeframe, currentSymbol, isCandleType, fetchUDFHistory]);
 
-  // Real-Time Price Streaming via EventSource (SSE) strictly using apiBase from .env
+  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
+
+  // Real-Time Price Streaming via central PriceContext
   useEffect(() => {
-    if (!chartInstance) return;
+    if (!chartInstance || !seriesRef.current || !liveMarkPrice || isNaN(liveMarkPrice) || liveMarkPrice <= 0) return;
 
-    let eventSource = null;
+    const price = liveMarkPrice;
+    const timestamp = Math.floor(Date.now() / 1000);
+    const intervalSec = TIMEFRAME_SECONDS[activeTimeframe] || 900;
+    const candleTime = Math.floor(timestamp / intervalSec) * intervalSec;
 
-    const connectSSE = () => {
-      const targetUrl = `${apiBase}/v1/shims/tradingview/streaming?symbol=${encodeURIComponent(currentSymbol)}`;
+    let currentCandle = activeCandleRef.current;
 
-      try {
-        eventSource = new EventSource(targetUrl);
+    if (!currentCandle || candleTime > currentCandle.time) {
+      currentCandle = {
+        time: candleTime,
+        open: price,
+        high: price,
+        low: price,
+        close: price
+      };
+    } else if (candleTime === currentCandle.time) {
+      currentCandle = {
+        ...currentCandle,
+        high: Math.max(currentCandle.high, price),
+        low: Math.min(currentCandle.low, price),
+        close: price
+      };
+    }
 
-        eventSource.onmessage = (event) => {
-          if (!event.data || !seriesRef.current) return;
+    activeCandleRef.current = currentCandle;
 
-          try {
-            const data = JSON.parse(event.data);
-            const price = parseFloat(data.p || data.priceUSD || data.price || data.close || data.ask);
-            const timestamp = parseInt(data.t || data.timestamp, 10);
-
-            if (isNaN(price) || isNaN(timestamp)) return;
-
-            const intervalSec = TIMEFRAME_SECONDS[activeTimeframe] || 900;
-            const candleTime = Math.floor(timestamp / intervalSec) * intervalSec;
-
-            let currentCandle = activeCandleRef.current;
-
-            if (!currentCandle || candleTime > currentCandle.time) {
-              currentCandle = {
-                time: candleTime,
-                open: price,
-                high: price,
-                low: price,
-                close: price
-              };
-            } else if (candleTime === currentCandle.time) {
-              currentCandle = {
-                ...currentCandle,
-                high: Math.max(currentCandle.high, price),
-                low: Math.min(currentCandle.low, price),
-                close: price
-              };
-            }
-
-            activeCandleRef.current = currentCandle;
-
-            if (isCandleType) {
-              seriesRef.current.update(currentCandle);
-            } else {
-              seriesRef.current.update({
-                time: currentCandle.time,
-                value: price
-              });
-            }
-
-            lastPriceRef.current = price;
-            lastTimeRef.current = candleTime;
-          } catch (err) {
-            console.error("SSE parse error:", err);
-          }
-        };
-
-        eventSource.onerror = () => {
-          if (eventSource) {
-            eventSource.close();
-          }
-          setTimeout(connectSSE, 4000);
-        };
-      } catch (err) {
-        console.error("Failed to initialize SSE EventSource:", err);
+    try {
+      if (isCandleType) {
+        seriesRef.current.update(currentCandle);
+      } else {
+        seriesRef.current.update({
+          time: currentCandle.time,
+          value: price
+        });
       }
-    };
+    } catch (err) {}
 
-    connectSSE();
-
-    return () => {
-      if (eventSource) {
-        eventSource.close();
-      }
-    };
-  }, [chartInstance, activeTimeframe, isCandleType, apiBase, currentSymbol]);
+    lastPriceRef.current = price;
+    lastTimeRef.current = candleTime;
+  }, [chartInstance, activeTimeframe, isCandleType, liveMarkPrice]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {

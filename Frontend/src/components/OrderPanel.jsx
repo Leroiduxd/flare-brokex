@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNotifications } from '../context/NotificationContext';
+import { usePriceStream } from '../context/PriceContext';
 import { useAccount, useWriteContract, useReadContract } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { encodeAbiParameters, parseAbiParameters, keccak256 } from 'viem';
@@ -476,41 +477,13 @@ export default function OrderPanel() {
 
   const availLiquidityUSD = Math.max(0, maxLimitUSD - currentOiUSD);
 
-  // 2. Stream real-time live prices via SSE (WSS Price stream) for selected symbol
+  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
+
   useEffect(() => {
-    if (!apiBase) return;
-    let eventSource = null;
-
-    const connectSSE = () => {
-      try {
-        eventSource = new EventSource(`${apiBase}/v1/shims/tradingview/streaming?symbol=${encodeURIComponent(selectedAssetSymbol)}`);
-        eventSource.onmessage = (event) => {
-          if (!event.data) return;
-          try {
-            const data = JSON.parse(event.data);
-            const p = parseFloat(data.p || data.priceUSD || data.price || data.close || data.ask);
-            if (!isNaN(p) && p > 0) {
-              setCurrentMarkPrice(p);
-            }
-          } catch (err) {
-            console.error("OrderPanel SSE parse error:", err);
-          }
-        };
-
-        eventSource.onerror = () => {
-          if (eventSource) eventSource.close();
-          setTimeout(connectSSE, 4000);
-        };
-      } catch (err) {
-        console.error("OrderPanel SSE connect error:", err);
-      }
-    };
-
-    connectSSE();
-    return () => {
-      if (eventSource) eventSource.close();
-    };
-  }, [apiBase, selectedAssetSymbol]);
+    if (liveMarkPrice > 0) {
+      setCurrentMarkPrice(liveMarkPrice);
+    }
+  }, [liveMarkPrice]);
 
   const leverageStops = [2, 10, 25, 50, maxLeverageNum];
 

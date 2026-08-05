@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { usePriceStream } from '../context/PriceContext';
 
 function formatCompactUSD(val) {
   const num = Number(val || 0);
@@ -196,76 +197,39 @@ export default function TopNav() {
     return () => clearInterval(interval);
   }, [apiBase]);
 
-  // Connect SSE real-time streaming for live price updates from WSS stream
+  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
+
   useEffect(() => {
-    let eventSource = null;
+    if (liveMarkPrice > 0) {
+      const decimals = selectedAssetKey === 'XRP' ? 4 : 2;
+      const formattedPrice = liveMarkPrice.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
-    const connectSSE = () => {
-      const targetUrl = `${apiBase}/v1/shims/tradingview/streaming?symbol=${encodeURIComponent(activeAsset.chartSymbol)}`;
+      setLivePrice(prev => {
+        const prevNum = parseFloat((prev || '0').replace(/,/g, ''));
+        let newChange = priceChange;
+        let isUp = true;
+        if (!isNaN(prevNum) && prevNum > 0 && liveMarkPrice !== prevNum) {
+          const diffPct = ((liveMarkPrice - prevNum) / prevNum) * 100;
+          const sign = diffPct >= 0 ? '+' : '';
+          newChange = `${sign}${diffPct.toFixed(2)}%`;
+          isUp = diffPct >= 0;
+          setPriceChange(newChange);
+        }
 
-      try {
-        eventSource = new EventSource(targetUrl);
-
-        eventSource.onmessage = (event) => {
-          if (!event.data) return;
-
-          try {
-            const data = JSON.parse(event.data);
-            const priceVal = parseFloat(data.p || data.priceUSD || data.price || data.close || data.ask);
-
-            if (!isNaN(priceVal) && priceVal > 0) {
-              const decimals = selectedAssetKey === 'XRP' ? 4 : 2;
-              const formattedPrice = priceVal.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-
-              setLivePrice(prev => {
-                const prevNum = parseFloat((prev || '0').replace(/,/g, ''));
-                let newChange = priceChange;
-                let isUp = true;
-                if (!isNaN(prevNum) && prevNum > 0 && priceVal !== prevNum) {
-                  const diffPct = ((priceVal - prevNum) / prevNum) * 100;
-                  const sign = diffPct >= 0 ? '+' : '';
-                  newChange = `${sign}${diffPct.toFixed(2)}%`;
-                  isUp = diffPct >= 0;
-                  setPriceChange(newChange);
-                }
-
-                setAssetMetrics(am => ({
-                  ...am,
-                  [selectedAssetKey]: {
-                    ...(am[selectedAssetKey] || {}),
-                    price: formattedPrice,
-                    change: newChange,
-                    isUp
-                  }
-                }));
-
-                return formattedPrice;
-              });
-            }
-          } catch (err) {
-            console.error("TopNav SSE parse error:", err);
+        setAssetMetrics(am => ({
+          ...am,
+          [selectedAssetKey]: {
+            ...(am[selectedAssetKey] || {}),
+            price: formattedPrice,
+            change: newChange,
+            isUp
           }
-        };
+        }));
 
-        eventSource.onerror = () => {
-          if (eventSource) {
-            eventSource.close();
-          }
-          setTimeout(connectSSE, 4000);
-        };
-      } catch (err) {
-        console.error("TopNav SSE connect error:", err);
-      }
-    };
-
-    connectSSE();
-
-    return () => {
-      if (eventSource) {
-        eventSource.close();
-      }
-    };
-  }, [apiBase, activeAsset.chartSymbol, selectedAssetKey]);
+        return formattedPrice;
+      });
+    }
+  }, [liveMarkPrice, selectedAssetKey, priceChange]);
 
   // Compute stats dynamically from snapshot and volume API data
   const currentAssetData = snapshotData?.assets?.[selectedAssetKey] || snapshotData?.assets?.[activeAsset.badge] || null;
