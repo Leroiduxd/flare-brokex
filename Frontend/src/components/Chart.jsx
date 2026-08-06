@@ -49,6 +49,8 @@ export default function Chart({ symbol: initialSymbol = 'Metal.XAU/USD' }) {
   const earliestTimeRef = useRef(null);
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
+  const high24hRef = useRef(0);
+  const low24hRef = useRef(Infinity);
 
   const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'];
   const apiBase = import.meta.env.VITE_FLARE_API_URL || 'https://apiflare.brokex.trade';
@@ -231,6 +233,35 @@ export default function Chart({ symbol: initialSymbol = 'Metal.XAU/USD' }) {
             series.setData(sorted.map(c => ({ time: c.time, value: c.close })));
           }
           chartInstance.timeScale().fitContent();
+
+          // Calculate 24h High & Low from UDF history candles
+          const nowSec = Math.floor(Date.now() / 1000);
+          const last24hCandles = sorted.filter(c => c.time >= nowSec - 86400);
+
+          let hVal = 0;
+          let lVal = Infinity;
+
+          if (last24hCandles.length > 0) {
+            hVal = Math.max(...last24hCandles.map(c => c.high));
+            lVal = Math.min(...last24hCandles.map(c => c.low));
+          } else if (sorted.length > 0) {
+            const recentSlice = sorted.slice(-24);
+            hVal = Math.max(...recentSlice.map(c => c.high));
+            lVal = Math.min(...recentSlice.map(c => c.low));
+          }
+
+          if (hVal > 0 && lVal < Infinity) {
+            high24hRef.current = hVal;
+            low24hRef.current = lVal;
+
+            window.dispatchEvent(new CustomEvent('brokex_24h_metrics_updated', {
+              detail: {
+                symbol: currentSymbol,
+                high24h: hVal,
+                low24h: lVal
+              }
+            }));
+          }
         } else {
           setError("No historical chart data available.");
         }
@@ -347,6 +378,27 @@ export default function Chart({ symbol: initialSymbol = 'Metal.XAU/USD' }) {
 
     lastPriceRef.current = price;
     lastTimeRef.current = candleTime;
+
+    // Update live 24h High & Low
+    let updatedHigh = false;
+    if (price > high24hRef.current || high24hRef.current === 0) {
+      high24hRef.current = price;
+      updatedHigh = true;
+    }
+    if (price < low24hRef.current || low24hRef.current === Infinity) {
+      low24hRef.current = price;
+      updatedHigh = true;
+    }
+
+    if (updatedHigh || Math.random() < 0.1) {
+      window.dispatchEvent(new CustomEvent('brokex_24h_metrics_updated', {
+        detail: {
+          symbol: currentSymbol,
+          high24h: high24hRef.current,
+          low24h: low24hRef.current
+        }
+      }));
+    }
   }, [chartInstance, activeTimeframe, isCandleType, liveMarkPrice]);
 
   const toggleFullscreen = () => {

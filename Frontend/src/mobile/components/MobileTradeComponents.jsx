@@ -29,6 +29,8 @@ export function MobileTopNav({ activeMarketInfo = {}, setIsMarketSelectorOpen })
   const [volumeData, setVolumeData] = useState(null);
   const [livePrice, setLivePrice] = useState(activeMarketInfo?.price || '4,046.52');
   const [priceChange, setPriceChange] = useState(activeMarketInfo?.change || '+0.12%');
+  const [high24h, setHigh24h] = useState(0);
+  const [low24h, setLow24h] = useState(0);
 
   const { snapshotData: globalSnapshot, volumeData: globalVolume } = useGlobalData();
 
@@ -36,6 +38,17 @@ export function MobileTopNav({ activeMarketInfo = {}, setIsMarketSelectorOpen })
     if (globalSnapshot) setSnapshotData(globalSnapshot);
     if (globalVolume) setVolumeData(globalVolume);
   }, [globalSnapshot, globalVolume]);
+
+  useEffect(() => {
+    const handle24hMetrics = (e) => {
+      if (e.detail && e.detail.high24h !== undefined && e.detail.low24h !== undefined) {
+        setHigh24h(e.detail.high24h);
+        setLow24h(e.detail.low24h);
+      }
+    };
+    window.addEventListener('brokex_24h_metrics_updated', handle24hMetrics);
+    return () => window.removeEventListener('brokex_24h_metrics_updated', handle24hMetrics);
+  }, []);
 
   const { currentMarkPrice: liveMarkPrice } = usePriceStream();
 
@@ -119,46 +132,29 @@ export function MobileTopNav({ activeMarketInfo = {}, setIsMarketSelectorOpen })
           .mobile-metrics-scroll > * { flex-shrink: 0; }
         `}</style>
 
-        {/* Spread */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>Spread</span>
-          <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: 'var(--text-dark)' }}>
-            0.01%
-          </span>
-        </div>
-
-        {/* Borrow Fee */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>Borrow Fee</span>
-          <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: 'var(--text-dark)' }}>
-            {borrowFeePct}%/h
-          </span>
-        </div>
-
-        {/* Open Interest */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>Open Interest</span>
-          <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: 'var(--text-dark)' }}>
-            {formatCompactUSD(oiTotalRaw)} / {formatCompactUSD(maxOiRaw)}
-          </span>
-        </div>
-
-        {/* Long/Short Ratio */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>L/S Ratio</span>
-          <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold' }}>
-            <span style={{ color: '#3b82f6' }}>{longRatio}%</span>
-            <span style={{ color: 'var(--text-grey)', margin: '0 2px' }}>/</span>
-            <span style={{ color: '#ef4444' }}>{shortRatio}%</span>
-          </span>
-        </div>
-
         {/* 24h Volume */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>24h Volume</span>
           <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: 'var(--text-dark)' }}>
             {formatCompactUSD(vol24hRaw)}
           </span>
+        </div>
+
+        {/* 24h High & Low Group */}
+        <div style={{ display: 'flex', gap: '18px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>24h High</span>
+            <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: '#3b82f6' }}>
+              {high24h > 0 ? `$${high24h.toLocaleString('en-US', { minimumFractionDigits: dynamicMarketInfo?.symbol?.includes('XRP') ? 4 : 2, maximumFractionDigits: dynamicMarketInfo?.symbol?.includes('XRP') ? 4 : 2 })}` : '—'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>24h Low</span>
+            <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: '#ef4444' }}>
+              {low24h > 0 && low24h < Infinity ? `$${low24h.toLocaleString('en-US', { minimumFractionDigits: dynamicMarketInfo?.symbol?.includes('XRP') ? 4 : 2, maximumFractionDigits: dynamicMarketInfo?.symbol?.includes('XRP') ? 4 : 2 })}` : '—'}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -208,18 +204,19 @@ export function MobileTradeInfo({ onOpenMarket, activeView, setActiveView }) {
           }}
         >
           <div style={{ 
-            width: '22px', 
-            height: '22px', 
+            width: '28px', 
+            height: '28px', 
             background: goldAccent, 
-            borderRadius: '5px', 
+            borderRadius: '6px', 
             color: '#000', 
             fontWeight: 'bold', 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center',
-            fontSize: '12px'
+            fontSize: '11px',
+            fontFamily: 'Source Code Pro, monospace'
           }}>
-            G
+            [{stats.ticker.includes('XRP') ? 'XRP' : 'XAU'}]
           </div>
           <span style={{ fontSize: '13px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '3px' }}>
             {stats.ticker}

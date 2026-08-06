@@ -64,6 +64,8 @@ export default function TopNav() {
 
   const [livePrice, setLivePrice] = useState(activeAsset.defaultPrice);
   const [priceChange, setPriceChange] = useState('+0.12%');
+  const [high24h, setHigh24h] = useState(0);
+  const [low24h, setLow24h] = useState(0);
   const [snapshotData, setSnapshotData] = useState(null);
   const [volumeData, setVolumeData] = useState(null);
   const [teeSpreads, setTeeSpreads] = useState({ spreadLongBps: 30, spreadShortBps: 30 });
@@ -81,21 +83,37 @@ export default function TopNav() {
     setSelectedAssetKey(key);
     localStorage.setItem('brokex_selected_asset', key);
     setIsDropdownOpen(false);
+    setHigh24h(0);
+    setLow24h(0);
     const initialPrice = assetMetrics[key]?.price || ASSET_CONFIGS[key].defaultPrice;
     setLivePrice(initialPrice);
     setPriceChange(assetMetrics[key]?.change || '+0.00%');
     window.dispatchEvent(new CustomEvent('brokex_asset_changed', { detail: { assetKey: key, symbol: ASSET_CONFIGS[key].chartSymbol } }));
   };
 
-  // Listen to external asset changes
+  // Listen to external asset changes and 24h metrics from Chart.jsx
   useEffect(() => {
     const handleCustomChange = (e) => {
       if (e.detail && e.detail.assetKey && ASSET_CONFIGS[e.detail.assetKey]) {
         setSelectedAssetKey(e.detail.assetKey);
+        setHigh24h(0);
+        setLow24h(0);
       }
     };
+
+    const handle24hMetrics = (e) => {
+      if (e.detail && e.detail.high24h !== undefined && e.detail.low24h !== undefined) {
+        setHigh24h(e.detail.high24h);
+        setLow24h(e.detail.low24h);
+      }
+    };
+
     window.addEventListener('brokex_asset_changed', handleCustomChange);
-    return () => window.removeEventListener('brokex_asset_changed', handleCustomChange);
+    window.addEventListener('brokex_24h_metrics_updated', handle24hMetrics);
+    return () => {
+      window.removeEventListener('brokex_asset_changed', handleCustomChange);
+      window.removeEventListener('brokex_24h_metrics_updated', handle24hMetrics);
+    };
   }, []);
 
   const { snapshotData: globalSnapshot, volumeData: globalVolume, priceDifferences: globalDiffs, getAssetRiskParams } = useGlobalData();
@@ -219,13 +237,13 @@ export default function TopNav() {
             <div 
               className="ticker-logo" 
               style={{ 
-                width: '26px',
-                height: '26px',
-                borderRadius: '4px',
+                width: '32px',
+                height: '32px',
+                borderRadius: '6px',
                 background: activeAsset.badgeBg, // Gold #BC8961
                 color: activeAsset.badgeColor, // Black #000
                 fontWeight: 'bold', 
-                fontSize: '8.5px', 
+                fontSize: '10.5px', 
                 fontFamily: 'Source Code Pro, monospace',
                 display: 'flex',
                 alignItems: 'center',
@@ -297,13 +315,13 @@ export default function TopNav() {
                     {/* Left: Square Gold Badge + Asset Info */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div style={{ 
-                        width: '26px',
-                        height: '26px',
-                        borderRadius: '4px', 
+                        width: '30px',
+                        height: '30px',
+                        borderRadius: '6px', 
                         background: asset.badgeBg, // Gold #BC8961
                         color: asset.badgeColor, // Black #000
                         fontWeight: 'bold', 
-                        fontSize: '8.5px', 
+                        fontSize: '10px', 
                         fontFamily: 'Source Code Pro, monospace', 
                         display: 'flex',
                         alignItems: 'center',
@@ -387,9 +405,6 @@ export default function TopNav() {
             </span>
           </div>
 
-          {/* Vertical Separator */}
-          <div style={{ width: '1px', height: '24px', background: 'var(--border-color)' }}></div>
-
           {/* Spread Section */}
           <div className="stat-item">
             <span className="stat-label">Spread</span>
@@ -435,6 +450,26 @@ export default function TopNav() {
             <span className="stat-value" style={{ fontFamily: 'Source Code Pro, monospace' }}>
               {formatCompactUSD(vol24hRaw)}
             </span>
+          </div>
+
+          {/* Vertical Separator */}
+          <div style={{ width: '1px', height: '24px', background: 'var(--border-color)' }}></div>
+
+          {/* 24h High & Low Group (Right Aligned, No Separator Between Them) */}
+          <div style={{ display: 'flex', gap: '15px' }}>
+            <div className="stat-item">
+              <span className="stat-label">24h High</span>
+              <span className="stat-value" style={{ color: '#3b82f6', fontFamily: 'Source Code Pro, monospace' }}>
+                {high24h > 0 ? `$${high24h.toLocaleString('en-US', { minimumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2, maximumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2 })}` : '—'}
+              </span>
+            </div>
+
+            <div className="stat-item">
+              <span className="stat-label">24h Low</span>
+              <span className="stat-value" style={{ color: '#ef4444', fontFamily: 'Source Code Pro, monospace' }}>
+                {low24h > 0 && low24h < Infinity ? `$${low24h.toLocaleString('en-US', { minimumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2, maximumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2 })}` : '—'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
