@@ -42,17 +42,18 @@ export function PriceProvider({ children }) {
     return () => window.removeEventListener('brokex_asset_changed', handleCustomChange);
   }, []);
 
-  // SINGLE GLOBAL SSE CONNECTION FOR THE ENTIRE APP
+  // SIMULTANEOUS SSE CONNECTIONS FOR ALL ASSETS (GOLD & XRP)
   useEffect(() => {
-    let eventSource = null;
+    let goldEventSource = null;
+    let xrpEventSource = null;
     let isMounted = true;
 
-    const connectSSE = () => {
+    const connectGold = () => {
       try {
-        const url = `${apiBase}/v1/shims/tradingview/streaming?symbol=${encodeURIComponent(selectedAssetSymbol)}`;
-        eventSource = new EventSource(url);
+        const url = `${apiBase}/v1/shims/tradingview/streaming?symbol=${encodeURIComponent('Metal.XAU/USD')}`;
+        goldEventSource = new EventSource(url);
 
-        eventSource.onmessage = (event) => {
+        goldEventSource.onmessage = (event) => {
           if (!event.data || !isMounted) return;
           try {
             const data = JSON.parse(event.data);
@@ -60,30 +61,58 @@ export function PriceProvider({ children }) {
             if (!isNaN(p) && p > 0) {
               setPrices(prev => ({
                 ...prev,
-                [selectedAssetKey]: p
+                GOLD: p
               }));
             }
           } catch (err) {}
         };
 
-        eventSource.onerror = () => {
-          if (eventSource) eventSource.close();
+        goldEventSource.onerror = () => {
+          if (goldEventSource) goldEventSource.close();
           if (isMounted) {
-            setTimeout(connectSSE, 5000);
+            setTimeout(connectGold, 5000);
           }
         };
       } catch (err) {}
     };
 
-    connectSSE();
+    const connectXRP = () => {
+      try {
+        const url = `${apiBase}/v1/shims/tradingview/streaming?symbol=${encodeURIComponent('Crypto.XRP/USD')}`;
+        xrpEventSource = new EventSource(url);
+
+        xrpEventSource.onmessage = (event) => {
+          if (!event.data || !isMounted) return;
+          try {
+            const data = JSON.parse(event.data);
+            const p = parseFloat(data.p || data.priceUSD || data.price || data.close || data.ask);
+            if (!isNaN(p) && p > 0) {
+              setPrices(prev => ({
+                ...prev,
+                XRP: p
+              }));
+            }
+          } catch (err) {}
+        };
+
+        xrpEventSource.onerror = () => {
+          if (xrpEventSource) xrpEventSource.close();
+          if (isMounted) {
+            setTimeout(connectXRP, 5000);
+          }
+        };
+      } catch (err) {}
+    };
+
+    connectGold();
+    connectXRP();
 
     return () => {
       isMounted = false;
-      if (eventSource) {
-        eventSource.close();
-      }
+      if (goldEventSource) goldEventSource.close();
+      if (xrpEventSource) xrpEventSource.close();
     };
-  }, [selectedAssetSymbol, selectedAssetKey]);
+  }, []);
 
   return (
     <PriceContext.Provider value={{

@@ -176,7 +176,28 @@ export default function TopNav() {
     });
   }, [globalSnapshot, globalVolume, globalDiffs]);
 
-  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
+  const { currentMarkPrice: liveMarkPrice, prices: livePrices } = usePriceStream();
+
+  useEffect(() => {
+    if (livePrices) {
+      setAssetMetrics(prev => {
+        const next = { ...prev };
+        if (livePrices.GOLD && livePrices.GOLD > 0) {
+          next.GOLD = {
+            ...(next.GOLD || {}),
+            price: livePrices.GOLD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          };
+        }
+        if (livePrices.XRP && livePrices.XRP > 0) {
+          next.XRP = {
+            ...(next.XRP || {}),
+            price: livePrices.XRP.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+          };
+        }
+        return next;
+      });
+    }
+  }, [livePrices]);
 
   useEffect(() => {
     if (liveMarkPrice > 0) {
