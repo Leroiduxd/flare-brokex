@@ -15,6 +15,13 @@
   --positions-height: 280px;
 }
 
+html, body {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body.light-mode {
   --bg-dark: #ffffff;
   --bg-subtle: #f8f9fa;

@@ -401,12 +401,39 @@ export default function Chart({ symbol: initialSymbol = 'Metal.XAU/USD' }) {
     }
   }, [chartInstance, activeTimeframe, isCandleType, liveMarkPrice]);
 
+  useEffect(() => {
+    const handleFsChange = () => {
+      const fsElem = document.fullscreenElement || document.webkitFullscreenElement;
+      setIsFullscreen(Boolean(fsElem));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
+
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      chartWrapperRef.current.requestFullscreen();
+    const currentFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!currentFs) {
+      const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const targetElem = isMobile ? document.documentElement : chartWrapperRef.current;
+
+      if (targetElem && targetElem.requestFullscreen) {
+        targetElem.requestFullscreen();
+      } else if (targetElem && targetElem.webkitRequestFullscreen) {
+        targetElem.webkitRequestFullscreen();
+      } else if (targetElem && targetElem.msRequestFullscreen) {
+        targetElem.msRequestFullscreen();
+      }
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen();
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
       setIsFullscreen(false);
     }
   };

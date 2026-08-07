@@ -12,6 +12,11 @@ import { wagmiConfig } from './config/wagmi'
 
 const queryClient = new QueryClient()
 
+// Prevent pinch-to-zoom gestures on mobile devices
+if (typeof window !== 'undefined') {
+  document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <WagmiProvider config={wagmiConfig}>
