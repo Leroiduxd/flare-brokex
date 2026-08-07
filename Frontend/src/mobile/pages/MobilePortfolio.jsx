@@ -168,8 +168,8 @@ export function MobilePortfolioContent() {
           </span>
           <span style={{ 
             fontSize: '8.5px', 
-            color: isConnected ? '#10b981' : 'var(--gold)', 
-            backgroundColor: isConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(200, 169, 126, 0.1)', 
+            color: isConnected ? '#3b82f6' : 'var(--gold)', 
+            backgroundColor: isConnected ? 'rgba(59, 130, 246, 0.1)' : 'rgba(200, 169, 126, 0.1)', 
             padding: '2px 6px', 
             borderRadius: '4px', 
             fontWeight: 'bold' 

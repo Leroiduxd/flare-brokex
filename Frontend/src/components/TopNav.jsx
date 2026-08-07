@@ -176,7 +176,10 @@ export default function TopNav() {
     });
   }, [globalSnapshot, globalVolume, globalDiffs]);
 
-  const { currentMarkPrice: liveMarkPrice, prices: livePrices } = usePriceStream();
+  const { currentMarkPrice: liveMarkPrice, prices: livePrices, high24hMap, low24hMap } = usePriceStream();
+
+  const effectiveHigh24h = high24h > 0 ? high24h : (high24hMap?.[selectedAssetKey] || 0);
+  const effectiveLow24h = (low24h > 0 && low24h < Infinity) ? low24h : (low24hMap?.[selectedAssetKey] || 0);
 
   useEffect(() => {
     if (livePrices) {
@@ -481,14 +484,14 @@ export default function TopNav() {
             <div className="stat-item">
               <span className="stat-label">24h High</span>
               <span className="stat-value" style={{ color: '#3b82f6', fontFamily: 'Source Code Pro, monospace' }}>
-                {high24h > 0 ? `$${high24h.toLocaleString('en-US', { minimumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2, maximumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2 })}` : '—'}
+                {effectiveHigh24h > 0 ? `$${effectiveHigh24h.toLocaleString('en-US', { minimumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2, maximumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2 })}` : '—'}
               </span>
             </div>
 
             <div className="stat-item">
               <span className="stat-label">24h Low</span>
               <span className="stat-value" style={{ color: '#ef4444', fontFamily: 'Source Code Pro, monospace' }}>
-                {low24h > 0 && low24h < Infinity ? `$${low24h.toLocaleString('en-US', { minimumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2, maximumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2 })}` : '—'}
+                {effectiveLow24h > 0 && effectiveLow24h < Infinity ? `$${effectiveLow24h.toLocaleString('en-US', { minimumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2, maximumFractionDigits: selectedAssetKey === 'XRP' ? 4 : 2 })}` : '—'}
               </span>
             </div>
           </div>

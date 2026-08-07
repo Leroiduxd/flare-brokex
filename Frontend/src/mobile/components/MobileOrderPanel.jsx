@@ -762,18 +762,50 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
         </div>
       </div>
 
-      {/* Dynamic Leverage Slider */}
+      {/* Dynamic Leverage Slider (PC-Matching Aesthetics & Custom Thumb Styles) */}
+      <style>{`
+        .custom-leverage-slider {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 100%;
+          height: 4px;
+          border-radius: 2px;
+          outline: none;
+          cursor: pointer;
+        }
+        .custom-leverage-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: #ffffff;
+          cursor: pointer;
+          border: 1px solid #333;
+          box-shadow: 0 0 4px rgba(0,0,0,0.3);
+        }
+        .custom-leverage-slider::-moz-range-thumb {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: #ffffff;
+          cursor: pointer;
+          border: 1px solid #333;
+          box-shadow: 0 0 4px rgba(0,0,0,0.3);
+        }
+      `}</style>
+
       <div style={{
         backgroundColor: 'rgba(255, 255, 255, 0.02)',
-        borderRadius: '8px',
+        borderRadius: '6px',
         border: '1px solid var(--border-color)',
-        padding: '8px 10px',
+        padding: '6px 8px',
         display: 'flex',
         flexDirection: 'column'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-          <span style={{ fontSize: '10px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>Leverage</span>
-          <span style={{ color: goldAccent, fontWeight: 'bold', fontSize: '12px', fontFamily: 'Source Code Pro, monospace' }}>{leverage}x</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-grey)' }}>Leverage</span>
+          <span style={{ color: 'var(--text-dark)', fontWeight: 600, fontSize: '13px', fontFamily: 'Source Code Pro, monospace' }}>{leverage}x</span>
         </div>
         <input
           type="range"
@@ -782,30 +814,26 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
           step="1"
           value={leverage}
           onChange={(e) => setLeverage(Number(e.target.value))}
-          style={{
-            width: '100%',
-            background: sliderBackground,
-            accentColor: goldAccent,
-            height: '4px',
-            borderRadius: '2px',
-            cursor: 'pointer'
-          }}
+          className="custom-leverage-slider"
+          style={{ background: sliderBackground, width: '100%' }}
         />
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', gap: '4px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', gap: '6px' }}>
           {leverageStops.map(lev => (
             <button
               key={lev}
               onClick={() => setLeverage(lev)}
               style={{
                 flex: 1,
-                padding: '4px 0',
-                fontSize: '9px',
+                padding: '6px 0',
+                fontSize: '10px',
                 border: 'none',
                 borderRadius: '4px',
-                backgroundColor: leverage === lev ? goldAccentLight : 'rgba(255,255,255,0.02)',
+                backgroundColor: leverage === lev ? goldAccentLight : 'rgba(255, 255, 255, 0.02)',
                 color: leverage === lev ? goldAccent : 'var(--text-grey)',
+                fontFamily: 'Source Code Pro, monospace',
+                fontWeight: 600,
                 cursor: 'pointer',
-                fontWeight: 'bold'
+                transition: 'all 0.1s'
               }}
             >
               {lev}x

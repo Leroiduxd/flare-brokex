@@ -1,32 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { usePriceStream } from '../context/PriceContext';
 
 const marketsData = [
+  // COMMODITIES
+  { symbol: 'XAU-USD', price: '4,046.52', oracle: '+1.2', change: '+0.12%', changeAbs: '+4.85', volume: '$452m', longFunding: '+0.0010%', shortFunding: '-0.0010%', lsRatio: 50, leverage: '100x', category: 'Commodities', logo: '[XAU]' },
   // CRYPTO
-  { symbol: 'BTC-USDC', price: '78,207', oracle: '-37', change: '-1.10%', changeAbs: '-866.0', volume: '$1.64b', longFunding: '+0.0001%', shortFunding: '-0.0001%', lsRatio: 52, leverage: '40x', category: 'Crypto', logo: 'BTC' },
-  { symbol: 'ETH-USDC', price: '2,180.5', oracle: '-1', change: '-1.74%', changeAbs: '-38.50', volume: '$592.58m', longFunding: '+0.0005%', shortFunding: '-0.0005%', lsRatio: 48, leverage: '25x', category: 'Crypto', logo: 'ETH' },
-  { symbol: 'SOL-USDC', price: '142.12', oracle: '+0.45', change: '+2.85%', changeAbs: '+3.94', volume: '$452.12m', longFunding: '+0.0002%', shortFunding: '-0.0002%', lsRatio: 65, leverage: '20x', category: 'Crypto', logo: 'SOL' },
-  
-  // FOREX
-  { symbol: 'EUR-USD', price: '1.0842', oracle: '+0.0001', change: '+0.12%', changeAbs: '+0.0013', volume: '$12.4b', longFunding: '+0.0002%', shortFunding: '-0.0002%', lsRatio: 51, leverage: '100x', category: 'Forex', logo: 'EUR' },
-  { symbol: 'GBP-USD', price: '1.2645', oracle: '-0.0002', change: '-0.08%', changeAbs: '-0.0010', volume: '$8.1b', longFunding: '+0.0001%', shortFunding: '-0.0001%', lsRatio: 49, leverage: '100x', category: 'Forex', logo: 'GBP' },
-  { symbol: 'USD-JPY', price: '149.52', oracle: '+0.05', change: '+0.34%', changeAbs: '+0.51', volume: '$15.2b', longFunding: '-0.0001%', shortFunding: '+0.0001%', lsRatio: 45, leverage: '100x', category: 'Forex', logo: 'JPY' },
-  
-  // COMMODITIES (Metals + Energy)
-  { symbol: 'XAU-USD', price: '2,315.10', oracle: '+1.2', change: '+0.45%', changeAbs: '+10.4', volume: '$452m', longFunding: '+0.0012%', shortFunding: '-0.0012%', lsRatio: 72, leverage: '50x', category: 'Commodities', logo: 'XAU' },
-  { symbol: 'XAG-USD', price: '28.45', oracle: '-0.05', change: '-0.21%', changeAbs: '-0.06', volume: '$104m', longFunding: '-0.0002%', shortFunding: '+0.0002%', lsRatio: 58, leverage: '20x', category: 'Commodities', logo: 'XAG' },
-  { symbol: 'WTI-USD', price: '82.45', oracle: '+0.12', change: '+0.15%', changeAbs: '+0.12', volume: '$85m', longFunding: '+0.0005%', shortFunding: '-0.0005%', lsRatio: 61, leverage: '20x', category: 'Commodities', logo: 'WTI' },
-  
-  // STOCKS
-  { symbol: 'AAPL-USD', price: '189.45', oracle: '+0.45', change: '+0.24%', changeAbs: '+0.45', volume: '$1.2b', longFunding: '0.0000%', shortFunding: '0.0000%', lsRatio: 70, leverage: '10x', category: 'Stocks', logo: 'AAPL' },
-  { symbol: 'META-USD', price: '502.12', oracle: '-1.20', change: '-0.45%', changeAbs: '-2.27', volume: '$840m', longFunding: '0.0000%', shortFunding: '0.0000%', lsRatio: 64, leverage: '10x', category: 'Stocks', logo: 'META' },
-  { symbol: 'MSFT-USD', price: '415.67', oracle: '+2.10', change: '+0.51%', changeAbs: '+2.12', volume: '$950m', longFunding: '0.0000%', shortFunding: '0.0000%', lsRatio: 68, leverage: '10x', category: 'Stocks', logo: 'MSFT' },
-  { symbol: 'AMZN-USD', price: '178.90', oracle: '+0.12', change: '+0.07%', changeAbs: '+0.13', volume: '$720m', longFunding: '0.0000%', shortFunding: '0.0000%', lsRatio: 66, leverage: '10x', category: 'Stocks', logo: 'AMZN' },
-  { symbol: 'GOOG-USD', price: '154.21', oracle: '-0.45', change: '-0.29%', changeAbs: '-0.45', volume: '$680m', longFunding: '0.0000%', shortFunding: '0.0000%', lsRatio: 62, leverage: '10x', category: 'Stocks', logo: 'GOOG' },
+  { symbol: 'XRP-USD', price: '2.4500', oracle: '+0.00', change: '+0.00%', changeAbs: '+0.00', volume: '$125m', longFunding: '+0.0010%', shortFunding: '-0.0010%', lsRatio: 50, leverage: '100x', category: 'Crypto', logo: '[XRP]' },
 ];
 
-const tabs = ['All', 'Crypto', 'Forex', 'Stocks', 'Commodities'];
+const tabs = ['All', 'Commodities', 'Crypto'];
 
 export default function MarketSelector({ isOpen, onClose }) {
+  const { prices: livePrices } = usePriceStream();
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -283,19 +268,25 @@ export default function MarketSelector({ isOpen, onClose }) {
 
       {/* Markets List */}
       <div style={{ flex: 1, overflowY: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
-        {filteredMarkets.map((m, i) => (
-          <div key={m.symbol} className="market-row">
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div className="asset-logo">{m.logo}</div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span className="asset-symbol">{m.symbol}</span>
-                <span className="market-label" style={{ alignSelf: 'flex-start', margin: '2px 0 0 0' }}>{m.leverage}</span>
+        {filteredMarkets.map((m) => {
+          const isXRP = m.symbol.includes('XRP');
+          const assetKey = isXRP ? 'XRP' : 'GOLD';
+          const rawPrice = livePrices?.[assetKey] || (isXRP ? 2.45 : 4046.52);
+          const displayPrice = rawPrice.toLocaleString('en-US', { minimumFractionDigits: isXRP ? 4 : 2, maximumFractionDigits: isXRP ? 4 : 2 });
+
+          return (
+            <div key={m.symbol} className="market-row">
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div className="asset-logo">{m.logo}</div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span className="asset-symbol">{m.symbol}</span>
+                  <span className="market-label" style={{ alignSelf: 'flex-start', margin: '2px 0 0 0' }}>{m.leverage}</span>
+                </div>
               </div>
-            </div>
-            
-            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-dark)' }}>{m.price}</span>
-            </div>
+              
+              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-dark)', fontFamily: 'Source Code Pro, monospace' }}>${displayPrice}</span>
+              </div>
 
             <div style={{ textAlign: 'right' }}>
               <span style={{ fontSize: '12px', fontWeight: '600', color: m.change.startsWith('+') ? '#3b82f6' : '#ef4444' }}>{m.change}</span>
@@ -320,7 +311,8 @@ export default function MarketSelector({ isOpen, onClose }) {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
             </div>
           </div>
-        ))}
+        );
+      })}
       </div>
 
       {/* Footer */}

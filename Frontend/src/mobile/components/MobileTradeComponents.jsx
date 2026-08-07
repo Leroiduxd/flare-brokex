@@ -31,13 +31,27 @@ export function MobileTopNav({ activeMarketInfo = {}, setIsMarketSelectorOpen })
   const [priceChange, setPriceChange] = useState(activeMarketInfo?.change || '+0.12%');
   const [high24h, setHigh24h] = useState(0);
   const [low24h, setLow24h] = useState(0);
+  const [teeSpreads, setTeeSpreads] = useState({ spreadLongBps: 30, spreadShortBps: 30 });
 
-  const { snapshotData: globalSnapshot, volumeData: globalVolume } = useGlobalData();
+  const { snapshotData: globalSnapshot, volumeData: globalVolume, getAssetRiskParams } = useGlobalData();
+
+  const currentAssetKey = activeMarketInfo?.symbol?.includes('XRP') || activeMarketInfo?.badge === 'XRP' ? 'XRP' : 'GOLD';
 
   useEffect(() => {
     if (globalSnapshot) setSnapshotData(globalSnapshot);
     if (globalVolume) setVolumeData(globalVolume);
   }, [globalSnapshot, globalVolume]);
+
+  useEffect(() => {
+    if (getAssetRiskParams) {
+      const p = getAssetRiskParams(currentAssetKey);
+      if (p) {
+        const sL = p.spreadLongBps !== undefined ? Number(p.spreadLongBps) : 30;
+        const sS = p.spreadShortBps !== undefined ? Number(p.spreadShortBps) : 30;
+        setTeeSpreads({ spreadLongBps: sL, spreadShortBps: sS });
+      }
+    }
+  }, [currentAssetKey, getAssetRiskParams]);
 
   useEffect(() => {
     const handle24hMetrics = (e) => {
@@ -50,32 +64,39 @@ export function MobileTopNav({ activeMarketInfo = {}, setIsMarketSelectorOpen })
     return () => window.removeEventListener('brokex_24h_metrics_updated', handle24hMetrics);
   }, []);
 
-  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
+  const { currentMarkPrice: liveMarkPrice, high24hMap, low24hMap } = usePriceStream();
+
+  const effectiveHigh24h = high24h > 0 ? high24h : (high24hMap?.[currentAssetKey] || 0);
+  const effectiveLow24h = (low24h > 0 && low24h < Infinity) ? low24h : (low24hMap?.[currentAssetKey] || 0);
 
   useEffect(() => {
     if (liveMarkPrice > 0) {
-      const formattedPrice = liveMarkPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const formattedPrice = liveMarkPrice.toLocaleString('en-US', { minimumFractionDigits: currentAssetKey === 'XRP' ? 4 : 2, maximumFractionDigits: currentAssetKey === 'XRP' ? 4 : 2 });
       setLivePrice(formattedPrice);
     }
-  }, [liveMarkPrice]);
+  }, [liveMarkPrice, currentAssetKey]);
 
   // Compute exact dynamic stats matching TopNav.jsx
-  const goldSnap = snapshotData?.assets?.GOLD?.snapshot || snapshotData?.assets?.GOLD || snapshotData?.assets?.XAU || null;
-  const snapConfig = goldSnap?.config || {};
+  const currentAssetData = snapshotData?.assets?.[currentAssetKey] || snapshotData?.assets?.GOLD?.snapshot || snapshotData?.assets?.GOLD || null;
+  const astSnap = currentAssetData?.snapshot || currentAssetData || null;
+  const snapConfig = astSnap?.config || {};
 
   const rawBorrowFee = Number(snapConfig.borrowRateHourly || 100);
   const borrowFeePct = (rawBorrowFee / 10000).toFixed(4); // "0.0100"
 
-  const oiLongRaw = Number(goldSnap?.openInterestLong || 0) / 1e6;
-  const oiShortRaw = Number(goldSnap?.openInterestShort || 0) / 1e6;
-  const oiTotalRaw = (goldSnap?.totalOpenInterest ? Number(goldSnap.totalOpenInterest) : (oiLongRaw + oiShortRaw) * 1e6) / 1e6;
+  const oiLongRaw = Number(astSnap?.openInterestLong || 0) / 1e6;
+  const oiShortRaw = Number(astSnap?.openInterestShort || 0) / 1e6;
+  const oiTotalRaw = (astSnap?.totalOpenInterest ? Number(astSnap.totalOpenInterest) : (oiLongRaw + oiShortRaw) * 1e6) / 1e6;
   const maxOiRaw = Number(snapConfig.maxGlobalOI || 500000000000) / 1e6;
 
   const totalOiForRatio = oiLongRaw + oiShortRaw;
   const longRatio = totalOiForRatio > 0 ? Math.round((oiLongRaw / totalOiForRatio) * 100) : 50;
   const shortRatio = 100 - longRatio;
 
-  const currentAssetKey = activeMarketInfo?.symbol?.includes('XRP') || activeMarketInfo?.badge === 'XRP' ? 'XRP' : 'GOLD';
+  const numericLivePrice = parseFloat((livePrice || '0').replace(/,/g, '')) || 0;
+  const spreadDisplayStr = numericLivePrice > 0 
+    ? `$${((teeSpreads.spreadLongBps / 10000) * numericLivePrice).toFixed(2)} (${(teeSpreads.spreadLongBps / 100).toFixed(2)}%)` 
+    : `${(teeSpreads.spreadLongBps / 100).toFixed(2)}%`;
 
   const getAssetVolume24h = (volData, assetKey) => {
     if (!volData || !volData.v24h) return 0;
@@ -132,6 +153,40 @@ export function MobileTopNav({ activeMarketInfo = {}, setIsMarketSelectorOpen })
           .mobile-metrics-scroll > * { flex-shrink: 0; }
         `}</style>
 
+        {/* Spread */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>Spread</span>
+          <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: 'var(--text-dark)' }}>
+            {spreadDisplayStr}
+          </span>
+        </div>
+
+        {/* Borrow Fee */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>Borrow Fee</span>
+          <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: 'var(--text-dark)' }}>
+            {borrowFeePct}%/h
+          </span>
+        </div>
+
+        {/* Open Interest */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>Open Interest</span>
+          <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: 'var(--text-dark)' }}>
+            {formatCompactUSD(oiTotalRaw)} / {formatCompactUSD(maxOiRaw)}
+          </span>
+        </div>
+
+        {/* Long/Short Ratio */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>L/S Ratio</span>
+          <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold' }}>
+            <span style={{ color: '#3b82f6' }}>{longRatio}%</span>
+            <span style={{ color: 'var(--text-grey)', margin: '0 2px' }}>/</span>
+            <span style={{ color: '#ef4444' }}>{shortRatio}%</span>
+          </span>
+        </div>
+
         {/* 24h Volume */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>24h Volume</span>
@@ -145,14 +200,14 @@ export function MobileTopNav({ activeMarketInfo = {}, setIsMarketSelectorOpen })
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>24h High</span>
             <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: '#3b82f6' }}>
-              {high24h > 0 ? `$${high24h.toLocaleString('en-US', { minimumFractionDigits: dynamicMarketInfo?.symbol?.includes('XRP') ? 4 : 2, maximumFractionDigits: dynamicMarketInfo?.symbol?.includes('XRP') ? 4 : 2 })}` : '—'}
+              {effectiveHigh24h > 0 ? `$${effectiveHigh24h.toLocaleString('en-US', { minimumFractionDigits: currentAssetKey === 'XRP' ? 4 : 2, maximumFractionDigits: currentAssetKey === 'XRP' ? 4 : 2 })}` : '—'}
             </span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <span style={{ fontSize: '8px', color: 'var(--text-grey)', textTransform: 'uppercase' }}>24h Low</span>
             <span style={{ fontSize: '10.5px', fontFamily: 'Source Code Pro, monospace', fontWeight: 'bold', color: '#ef4444' }}>
-              {low24h > 0 && low24h < Infinity ? `$${low24h.toLocaleString('en-US', { minimumFractionDigits: dynamicMarketInfo?.symbol?.includes('XRP') ? 4 : 2, maximumFractionDigits: dynamicMarketInfo?.symbol?.includes('XRP') ? 4 : 2 })}` : '—'}
+              {effectiveLow24h > 0 && effectiveLow24h < Infinity ? `$${effectiveLow24h.toLocaleString('en-US', { minimumFractionDigits: currentAssetKey === 'XRP' ? 4 : 2, maximumFractionDigits: currentAssetKey === 'XRP' ? 4 : 2 })}` : '—'}
             </span>
           </div>
         </div>

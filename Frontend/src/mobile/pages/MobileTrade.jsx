@@ -10,34 +10,21 @@ import {
   MobileTradeHeader,
   MobileTopNav
 } from '../components/MobileTradeComponents';
+import { usePriceStream } from '../../context/PriceContext';
 
 const marketsData = [
-  // CRYPTO
-  { symbol: 'BTC-USDC', price: '78,207.00', change: '-1.10%', volume: '$1.64B', leverage: '40x', category: 'Crypto', logo: 'BTC', company: 'Bitcoin / USDC CFD' },
-  { symbol: 'ETH-USDC', price: '2,180.50', change: '-1.74%', volume: '$592.5M', leverage: '25x', category: 'Crypto', logo: 'ETH', company: 'Ethereum / USDC CFD' },
-  { symbol: 'SOL-USDC', price: '142.12', change: '+2.85%', volume: '$452.1M', leverage: '20x', category: 'Crypto', logo: 'SOL', company: 'Solana / USDC CFD' },
-  
   // COMMODITIES
-  { symbol: 'XAU-USD', price: '4,046.52', change: '+0.12%', volume: '$452.0M', leverage: '50x', category: 'Commodities', logo: 'XAU', company: 'Gold / US Dollar CFD' },
-  { symbol: 'XAG-USD', price: '28.45', change: '-0.21%', volume: '$104.0M', leverage: '20x', category: 'Commodities', logo: 'XAG', company: 'Silver / US Dollar CFD' },
-  { symbol: 'WTI-USD', price: '82.45', change: '+0.15%', volume: '$85.0M', leverage: '20x', category: 'Commodities', logo: 'WTI', company: 'Crude Oil / US Dollar CFD' },
-
-  // FOREX
-  { symbol: 'EUR-USD', price: '1.0842', change: '+0.12%', volume: '$12.4B', leverage: '100x', category: 'Forex', logo: 'EUR', company: 'Euro / US Dollar CFD' },
-  { symbol: 'GBP-USD', price: '1.2645', change: '-0.08%', volume: '$8.1B', leverage: '100x', category: 'Forex', logo: 'GBP', company: 'Pound / US Dollar CFD' },
-  { symbol: 'USD-JPY', price: '149.52', change: '+0.34%', volume: '$15.2B', leverage: '100x', category: 'Forex', logo: 'JPY', company: 'US Dollar / Yen CFD' },
-  
-  // STOCKS
-  { symbol: 'AAPL-USD', price: '189.45', change: '+0.24%', volume: '$1.2B', leverage: '10x', category: 'Stocks', logo: 'AAPL', company: 'Apple Inc. CFD' },
-  { symbol: 'META-USD', price: '502.12', change: '-0.45%', volume: '$840.0M', leverage: '10x', category: 'Stocks', logo: 'META', company: 'Meta Platforms Inc. CFD' },
-  { symbol: 'MSFT-USD', price: '415.67', change: '+0.51%', volume: '$950.0M', leverage: '10x', category: 'Stocks', logo: 'MSFT', company: 'Microsoft Corporation CFD' },
+  { symbol: 'XAU-USD', price: '4,046.52', change: '+0.12%', volume: '$452.0M', leverage: '100x', category: 'Commodities', logo: '[XAU]', company: 'Gold / US Dollar' },
+  // CRYPTO
+  { symbol: 'XRP-USD', price: '2.4500', change: '+0.00%', volume: '$125.0M', leverage: '100x', category: 'Crypto', logo: '[XRP]', company: 'XRP / US Dollar' },
 ];
 
-const categories = ['All', 'Crypto', 'Commodities', 'Forex', 'Stocks'];
+const categories = ['All', 'Commodities', 'Crypto'];
 
 export default function MobileTrade() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { prices: livePrices } = usePriceStream();
 
   // Primary active tab switcher: 'markets', 'trade', 'portfolio'
   // On first load, parse path to select matching tab, fallback to 'markets' by default
@@ -79,9 +66,13 @@ export default function MobileTrade() {
     };
   }, []);
 
-  const handleSelectMarket = (symbol) => {
-    setSelectedPair(symbol);
-    localStorage.setItem('brokex_selected_pair', symbol);
+  const handleSelectMarket = (symbolStr) => {
+    const key = symbolStr.includes('XRP') ? 'XRP' : 'GOLD';
+    const chartSym = key === 'XRP' ? 'Crypto.XRP/USD' : 'Metal.XAU/USD';
+    setSelectedPair(symbolStr);
+    localStorage.setItem('brokex_selected_pair', symbolStr);
+    localStorage.setItem('brokex_selected_asset', key);
+    window.dispatchEvent(new CustomEvent('brokex_asset_changed', { detail: { assetKey: key, symbol: chartSym } }));
     window.dispatchEvent(new Event('brokex_pair_changed'));
     setIsMarketSelectorOpen(false);
   };
@@ -240,6 +231,10 @@ export default function MobileTrade() {
                 {/* Markets List */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {filteredMarkets.map((m) => {
+                    const isXRP = m.symbol.includes('XRP');
+                    const assetKey = isXRP ? 'XRP' : 'GOLD';
+                    const rawPrice = livePrices?.[assetKey] || (isXRP ? 2.45 : 4046.52);
+                    const displayPrice = rawPrice.toLocaleString('en-US', { minimumFractionDigits: isXRP ? 4 : 2, maximumFractionDigits: isXRP ? 4 : 2 });
                     const isPositive = m.change.startsWith('+');
                     return (
                       <div
@@ -286,7 +281,7 @@ export default function MobileTrade() {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
                           <span style={{ fontSize: '13px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: 'var(--text-dark)' }}>
-                            ${m.price}
+                            ${displayPrice}
                           </span>
                           <span style={{ fontSize: '9.5px', fontWeight: 'bold', fontFamily: 'Source Code Pro, monospace', color: isPositive ? '#3b82f6' : '#ef4444' }}>
                             {m.change}

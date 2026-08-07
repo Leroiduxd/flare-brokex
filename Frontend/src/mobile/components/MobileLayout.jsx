@@ -2,14 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { usePriceStream } from '../../context/PriceContext';
+import { useGlobalData } from '../../context/DataContext';
 
-const TICKER_ITEMS = [
-  { symbol: 'BTC', price: '$78,207', change: '-1.1%', isUp: false },
-  { symbol: 'ETH', price: '$2,180', change: '-1.7%', isUp: false },
-  { symbol: 'SOL', price: '$142.1', change: '+2.8%', isUp: true },
-  { symbol: 'XAU', price: '$2,315', change: '+0.4%', isUp: true },
-  { symbol: 'EUR', price: '$1.084', change: '+0.1%', isUp: true },
-  { symbol: 'AAPL', price: '$189.4', change: '+0.2%', isUp: true },
+const DISPLAY_NAMES = {
+  'BTC': 'BTC',
+  'ETH': 'ETH',
+  'XRP': 'XRP',
+  'EURUSD': 'EUR',
+  'GBPUSD': 'GBP',
+  'JPYUSD': 'JPY',
+  'PETROLE': 'WTI',
+  'GOLD': 'XAU',
+  'SILVER': 'XAG',
+  'APPLE': 'AAPL',
+  'TESLA': 'TSLA',
+  'META': 'META',
+  'NVIDIA': 'NVDA',
+  'GOOGLE': 'GOOG',
+  'AMAZON': 'AMZN',
+  'MICROSOFT': 'MSFT',
+  'SOLANA': 'SOL'
+};
+
+const DEFAULT_FALLBACK_TICKER = [
+  { symbol: 'XAU', price: '$4,046.52', change: '+0.12%', isUp: true },
+  { symbol: 'XRP', price: '$2.4500', change: '+0.00%', isUp: true },
 ];
 
 export default function MobileLayout({ children, disablePadding = false }) {
@@ -19,34 +36,40 @@ export default function MobileLayout({ children, disablePadding = false }) {
     document.body.classList.contains('light-mode')
   );
 
-  const [liveGoldPrice, setLiveGoldPrice] = useState('$4,046.52');
-  const [liveGoldChange, setLiveGoldChange] = useState('+0.12%');
-
-  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
+  const { priceDifferences: globalDiffs } = useGlobalData();
+  const { prices: livePrices } = usePriceStream();
+  const [tickerItems, setTickerItems] = useState(DEFAULT_FALLBACK_TICKER);
 
   useEffect(() => {
-    if (liveMarkPrice > 0) {
-      const formatted = `$${liveMarkPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      setLiveGoldPrice(prev => {
-        const prevNum = parseFloat((prev || '0').replace(/[^0-9.]/g, ''));
-        if (!isNaN(prevNum) && prevNum > 0 && liveMarkPrice !== prevNum) {
-          const diffPct = ((liveMarkPrice - prevNum) / prevNum) * 100;
-          const sign = diffPct >= 0 ? '+' : '';
-          setLiveGoldChange(`${sign}${diffPct.toFixed(2)}%`);
-        }
-        return formatted;
-      });
-    }
-  }, [liveMarkPrice]);
+    if (!globalDiffs) return;
+    const rawData = Array.isArray(globalDiffs) ? globalDiffs : (globalDiffs.data || []);
 
-  const tickerItems = [
-    { symbol: 'XAU', price: liveGoldPrice, change: liveGoldChange, isUp: !liveGoldChange.startsWith('-') },
-    { symbol: 'BTC', price: '$78,207', change: '-1.1%', isUp: false },
-    { symbol: 'ETH', price: '$2,180', change: '-1.7%', isUp: false },
-    { symbol: 'SOL', price: '$142.1', change: '+2.8%', isUp: true },
-    { symbol: 'EUR', price: '$1.084', change: '+0.1%', isUp: true },
-    { symbol: 'AAPL', price: '$189.4', change: '+0.2%', isUp: true },
-  ];
+    const parsed = rawData.map(item => {
+      const diffNum = parseFloat(item.day_price_diff_decimal || item.hour_price_diff_decimal || 0) * 100;
+      const aliasKey = (item.alias || item.symbol || '').toUpperCase();
+      const symbol = DISPLAY_NAMES[aliasKey] || aliasKey || 'ASSET';
+      
+      let priceVal = parseFloat(item.last_price || item.priceUSD || item.price || 0);
+      if (symbol === 'XAU' && livePrices?.GOLD > 0) priceVal = livePrices.GOLD;
+      if (symbol === 'XRP' && livePrices?.XRP > 0) priceVal = livePrices.XRP;
+
+      const dec = (symbol === 'XRP' || (priceVal > 0 && priceVal < 10)) ? 4 : 2;
+      const priceStr = priceVal > 0 
+        ? `$${priceVal.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}`
+        : '—';
+
+      return {
+        symbol,
+        price: priceStr,
+        change: `${diffNum >= 0 ? '+' : ''}${diffNum.toFixed(2)}%`,
+        isUp: diffNum >= 0
+      };
+    });
+
+    if (parsed.length > 0) {
+      setTickerItems(parsed);
+    }
+  }, [globalDiffs, livePrices]);
 
   const toggleTheme = () => {
     const newMode = !isLightMode;
@@ -90,7 +113,7 @@ export default function MobileLayout({ children, disablePadding = false }) {
         .mobile-ticker-track {
           display: flex;
           gap: 18px;
-          animation: ticker-marquee 18s linear infinite;
+          animation: ticker-marquee 36s linear infinite;
           white-space: nowrap;
         }
 
@@ -183,10 +206,9 @@ export default function MobileLayout({ children, disablePadding = false }) {
             {[...tickerItems, ...tickerItems].map((item, idx) => (
               <div key={idx} className="mobile-ticker-item">
                 <span style={{ color: 'var(--text-grey)' }}>[</span>
-                <span style={{ color: 'var(--text-dark)' }}>{item.symbol}</span>
+                <span style={{ color: 'var(--text-dark)', fontWeight: 'bold' }}>{item.symbol}</span>
                 <span style={{ color: 'var(--text-grey)' }}>]</span>
-                <span style={{ color: 'var(--text-dark)', marginLeft: '3px' }}>{item.price}</span>
-                <span style={{ color: item.isUp ? '#3b82f6' : '#ef4444', marginLeft: '3px' }}>{item.change}</span>
+                <span style={{ color: item.isUp ? '#3b82f6' : '#ef4444', marginLeft: '4px' }}>{item.change}</span>
               </div>
             ))}
           </div>
