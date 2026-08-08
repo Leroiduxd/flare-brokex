@@ -651,10 +651,8 @@ app.get(['/api/vault/withdrawals/user/:address', '/api/withdrawals/user/:address
         if (!address) {
             return res.status(400).json({ error: "L'adresse du wallet est requise." });
         }
-        // Toujours resynchroniser légèrement si demandé via query ?refresh=true
-        if (req.query.refresh === 'true' || req.query.sync === 'true') {
-            await syncWithdrawalQueue();
-        }
+        // Force la resynchronisation on-chain de la file d'attente à chaque requête pour des données 100% à jour
+        await syncWithdrawalQueue();
 
         const data = getWithdrawalsByWallet(address);
         res.json(data);

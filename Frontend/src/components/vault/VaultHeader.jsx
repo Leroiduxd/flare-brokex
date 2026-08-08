@@ -38,9 +38,10 @@ export default function VaultHeader() {
   }, []);
 
   const parse1e6 = (val, fallback = 0) => {
-    if (!val) return fallback;
+    if (val === undefined || val === null || val === '') return fallback;
     const num = Number(val);
-    return num > 100000 ? num / 1e6 : num;
+    if (isNaN(num)) return fallback;
+    return Math.abs(num) > 100000 ? num / 1e6 : num;
   };
 
   const latestMetric = metricsData.length > 0 ? metricsData[metricsData.length - 1] : {};
@@ -76,9 +77,15 @@ export default function VaultHeader() {
     ? `${(Number(rawUsageBps) / 100).toFixed(2)}%`
     : '0.00%';
 
-  const rawPnL = latestMetric.unrealizedPnL;
+  const rawPnL = latestMetric.unrealizedPnL !== undefined 
+    ? latestMetric.unrealizedPnL 
+    : (latestMetric.accumulatedFees !== undefined 
+      ? latestMetric.accumulatedFees 
+      : (snapshotData?.accumulatedFees || 0));
+
   const livePnLVal = parse1e6(rawPnL, 0);
-  const livePnL = `${livePnLVal >= 0 ? '+' : ''}$${livePnLVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const livePnLSign = livePnLVal > 0 ? '+' : (livePnLVal < 0 ? '-' : '');
+  const livePnL = `${livePnLSign}$${Math.abs(livePnLVal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // Long/Short Open Interest Ratio cumulated across all assets from /api/snapshot
   let oiLong = 0;

@@ -79,10 +79,10 @@ export default function VaultOverview() {
 
   // Helper for 1e6 scaled metrics division
   const parse1e6 = (val, fallback = 0) => {
-    if (!val) return fallback;
+    if (val === undefined || val === null || val === '') return fallback;
     const num = Number(val);
-    // If value > 100000 (10^5), assume it is scaled by 1e6
-    return num > 100000 ? num / 1e6 : num;
+    if (isNaN(num)) return fallback;
+    return Math.abs(num) > 100000 ? num / 1e6 : num;
   };
 
   // Compute live statistics from latest metric entry & snapshot

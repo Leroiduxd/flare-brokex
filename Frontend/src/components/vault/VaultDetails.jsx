@@ -73,6 +73,16 @@ export default function VaultDetails() {
     query: { enabled: Boolean(address), refetchInterval: 5000 }
   });
 
+  // Read USDC Allowance for Vault
+  const { data: rawUsdcAllowance, refetch: refetchAllowance } = useReadContract({
+    address: USDC_ADDRESS,
+    abi: erc20Abi,
+    functionName: 'allowance',
+    args: address && VAULT_ADDRESS ? [address, VAULT_ADDRESS] : undefined,
+    chainId: 114,
+    query: { enabled: Boolean(address), refetchInterval: 3000 }
+  });
+
   // Read BLP Token Balance
   const { data: rawBlpBal } = useReadContract({
     address: VAULT_ADDRESS,
@@ -132,6 +142,19 @@ export default function VaultDetails() {
   const estUSDCRequired = side === 'deposit' && depositMode === 'LP' ? (amountNum * lpTokenPrice) : 0;
   const estUSDCReceived = side === 'withdraw' ? (amountNum * lpTokenPrice) : 0;
 
+  const usdcNeededScaled = (() => {
+    if (side !== 'deposit') return 0n;
+    if (depositMode === 'USDC') {
+      return BigInt(Math.floor(amountNum * 1e6));
+    } else {
+      const usdcNeededFloat = amountNum * lpTokenPrice * 1.02;
+      return BigInt(Math.floor(usdcNeededFloat * 1e6));
+    }
+  })();
+
+  const currentAllowanceVal = rawUsdcAllowance ? BigInt(rawUsdcAllowance.toString()) : 0n;
+  const isAllowanceEnough = side === 'withdraw' || currentAllowanceVal >= usdcNeededScaled;
+
   // Percentage helper click
   const handlePercentClick = (pct) => {
     if (pct === 1.0) {
@@ -158,18 +181,7 @@ export default function VaultDetails() {
 
     setIsSubmitting(true);
     try {
-      const rpcUrl = import.meta.env.VITE_COSTON2_RPC_URL || 'https://coston2-api.flare.network/ext/C/rpc';
-
       if (side === 'deposit') {
-        let usdcNeededScaled = 0n;
-        if (depositMode === 'USDC') {
-          usdcNeededScaled = BigInt(Math.floor(amountNum * 1e6));
-        } else {
-          // Deposit LP mode: calculate USDC required with a 2% buffer/margin for price fluctuations
-          const usdcNeededFloat = amountNum * lpTokenPrice * 1.02;
-          usdcNeededScaled = BigInt(Math.floor(usdcNeededFloat * 1e6));
-        }
-
         // 1. Check USDC Balance
         const rawUsdcVal = rawUsdcBal ? BigInt(rawUsdcBal.toString()) : 0n;
         if (rawUsdcVal < usdcNeededScaled) {
@@ -178,27 +190,8 @@ export default function VaultDetails() {
           return;
         }
 
-        // 2. Check and approve USDC Allowance for Vault
-        const allowanceRes = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'eth_call',
-            params: [
-              {
-                to: USDC_ADDRESS,
-                data: `0xdd62572e000000000000000000000000${address.slice(2).toLowerCase()}000000000000000000000000${VAULT_ADDRESS.slice(2).toLowerCase()}`
-              },
-              'latest'
-            ]
-          })
-        });
-        const allowanceJson = await allowanceRes.json();
-        const currentAllowance = allowanceJson.result ? BigInt(allowanceJson.result) : 0n;
-
-        if (currentAllowance < usdcNeededScaled) {
+        // 2. Check if allowance is needed
+        if (!isAllowanceEnough) {
           if (showNotification) showNotification('Approving USDC for BrokexVault...', 'info');
           const maxUint256 = 115792089237316195423570985008687907853269984665640564039457584007913129639935n;
           const approveTxHash = await writeContractAsync({
@@ -208,9 +201,12 @@ export default function VaultDetails() {
             args: [VAULT_ADDRESS, maxUint256]
           });
           if (showNotification) showNotification('USDC approved for Vault successfully!', 'success', approveTxHash);
+          if (refetchAllowance) refetchAllowance();
+          setIsSubmitting(false);
+          return;
         }
 
-        // 3. Execute deposit or depositLP
+        // 3. Execute deposit or depositLP (Only reached if allowance is already enough!)
         if (depositMode === 'USDC') {
           const usdcAmountScaled = BigInt(Math.floor(amountNum * 1e6));
           const txHash = await writeContractAsync({
@@ -232,7 +228,6 @@ export default function VaultDetails() {
         }
       } else {
         // WITHDRAWAL: Call requestWithdraw(lpAmount)
-        // If amount equals or exceeds full wallet balance, use exact raw BigInt balance to avoid precision overflow
         const rawBal = rawBlpBal ? BigInt(rawBlpBal.toString()) : 0n;
         const calculatedScaled = BigInt(Math.floor(amountNum * 1e6));
         const lpAmountScaled = (rawBal > 0n && calculatedScaled >= rawBal - 100n) ? rawBal : calculatedScaled;
@@ -244,6 +239,11 @@ export default function VaultDetails() {
           args: [lpAmountScaled]
         });
         if (showNotification) showNotification(`Withdrawal request of ${amountNum} BLP submitted!`, 'success', txHash);
+        
+        // Immediate API call to update pending withdrawal list without waiting for polling
+        fetchPendingWithdrawals();
+        setTimeout(() => fetchPendingWithdrawals(), 2000);
+        setTimeout(() => fetchPendingWithdrawals(), 5000);
       }
     } catch (err) {
       console.error("Vault action error:", err);
@@ -259,33 +259,31 @@ export default function VaultDetails() {
 
   const apiBase = import.meta.env.VITE_FLARE_API_URL || 'https://apiflare.brokex.trade';
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchPendingWithdrawals = async () => {
-      if (!address) {
-        if (isMounted) setPendingRequests([]);
-        return;
-      }
-      try {
-        setLoadingPending(true);
-        const res = await fetch(`${apiBase}/api/vault/withdrawals/user/${address}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted && data && Array.isArray(data.requests)) {
-            setPendingRequests(data.requests.filter(r => r.isPending));
-          }
+  const fetchPendingWithdrawals = async () => {
+    if (!address) {
+      setPendingRequests([]);
+      return;
+    }
+    try {
+      setLoadingPending(true);
+      const res = await fetch(`${apiBase}/api/vault/withdrawals/user/${address}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.requests)) {
+          setPendingRequests(data.requests.filter(r => r.isPending));
         }
-      } catch (err) {
-        console.error("Fetch pending withdrawals error:", err);
-      } finally {
-        if (isMounted) setLoadingPending(false);
       }
-    };
+    } catch (err) {
+      console.error("Fetch pending withdrawals error:", err);
+    } finally {
+      setLoadingPending(false);
+    }
+  };
 
+  useEffect(() => {
     fetchPendingWithdrawals();
     const interval = setInterval(fetchPendingWithdrawals, 8000);
     return () => {
-      isMounted = false;
       clearInterval(interval);
     };
   }, [address, apiBase]);
@@ -535,9 +533,14 @@ export default function VaultDetails() {
         >
           {isSubmitting
             ? 'Processing Transaction...'
-            : (side === 'deposit'
-              ? (depositMode === 'USDC' ? 'DEPOSIT USDC (deposit)' : 'DEPOSIT LP (depositLP)')
-              : 'REQUEST WITHDRAWAL (requestWithdraw)')
+            : (!isConnected
+              ? 'Connect Wallet'
+              : (side === 'deposit'
+                ? (!isAllowanceEnough
+                  ? 'APPROVE USDC FOR VAULT'
+                  : (depositMode === 'USDC' ? 'DEPOSIT USDC (deposit)' : 'DEPOSIT LP (depositLP)'))
+                : 'REQUEST WITHDRAWAL (requestWithdraw)')
+            )
           }
         </button>
       </div>

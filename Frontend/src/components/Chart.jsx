@@ -454,6 +454,7 @@ export default function Chart({ symbol: initialSymbol = 'Metal.XAU/USD' }) {
                 borderRadius: '4px',
                 fontSize: '11px',
                 fontWeight: activeTimeframe === tf ? '600' : '400',
+                fontFamily: "'Source Code Pro', monospace",
                 cursor: 'pointer',
                 transition: 'all 0.2s'
               }}

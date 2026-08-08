@@ -1096,8 +1096,8 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
           : (!isConnected
             ? 'Connect Wallet'
             : (side === 'buy'
-              ? `Go Long (${selectedAsset})`
-              : `Go Short (${selectedAsset})`)
+              ? 'Go Long'
+              : 'Go Short')
           )
         }
       </button>
