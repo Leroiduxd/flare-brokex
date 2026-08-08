@@ -54,12 +54,15 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
   const { openConnectModal } = useConnectModal();
   const { writeContractAsync } = useWriteContract();
 
+  const { currentMarkPrice: liveMarkPrice, selectedAssetKey: streamAssetKey } = usePriceStream();
+
   // Asset selection sync with desktop / TopNav
   const [selectedAssetKey, setSelectedAssetKey] = useState(() => {
     return localStorage.getItem('brokex_selected_asset') || 'GOLD';
   });
 
-  const isXRP = selectedAssetKey === 'XRP';
+  const effectiveAssetKey = streamAssetKey || selectedAssetKey;
+  const isXRP = effectiveAssetKey === 'XRP';
   const selectedAssetSymbol = isXRP ? 'Crypto.XRP/USD' : 'Metal.XAU/USD';
   const selectedAssetBadge = isXRP ? 'XRP' : 'XAU';
   const priceDecimals = isXRP ? 4 : 2;
@@ -198,7 +201,7 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
 
   // Sync risk params from central DataContext
   useEffect(() => {
-    const p = getAssetRiskParams(selectedAssetKey);
+    const p = getAssetRiskParams(effectiveAssetKey);
     if (p) {
       const sL = p.spreadLongBps !== undefined ? Number(p.spreadLongBps) : 30;
       const sS = p.spreadShortBps !== undefined ? Number(p.spreadShortBps) : 30;
@@ -207,11 +210,11 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
       if (p.maxOILong !== undefined) setMaxOILongVal(Number(p.maxOILong));
       if (p.maxOIShort !== undefined) setMaxOIShortVal(Number(p.maxOIShort));
     }
-  }, [selectedAssetKey, getAssetRiskParams]);
+  }, [effectiveAssetKey, getAssetRiskParams]);
 
   // Sync snapshot config & Open Interest from central DataContext
   useEffect(() => {
-    const assetObj = getAssetSnapshot(selectedAssetKey);
+    const assetObj = getAssetSnapshot(effectiveAssetKey);
     if (!assetObj) return;
 
     const assetSnap = assetObj.snapshot || assetObj;
@@ -232,9 +235,7 @@ export default function MobileOrderPanel({ isOpen, onClose, initialSide = 'buy',
       }
       if (assetConfig.liqThresholdBps) setLiqThresholdBps(Number(assetConfig.liqThresholdBps));
     }
-  }, [selectedAssetKey, getAssetSnapshot]);
-
-  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
+  }, [effectiveAssetKey, getAssetSnapshot]);
 
   useEffect(() => {
     if (liveMarkPrice > 0) {

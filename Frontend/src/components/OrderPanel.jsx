@@ -375,11 +375,13 @@ export default function OrderPanel() {
   const [currentOiLong, setCurrentOiLong] = useState(0);
   const [currentOiShort, setCurrentOiShort] = useState(0);
 
+  const { currentMarkPrice: liveMarkPrice, selectedAssetKey: streamAssetKey } = usePriceStream();
   const [selectedAssetKey, setSelectedAssetKey] = useState(() => {
     return localStorage.getItem('brokex_selected_asset') || 'GOLD';
   });
 
-  const isXRP = selectedAssetKey === 'XRP';
+  const effectiveAssetKey = streamAssetKey || selectedAssetKey;
+  const isXRP = effectiveAssetKey === 'XRP';
   const selectedAssetSymbol = isXRP ? 'Crypto.XRP/USD' : 'Metal.XAU/USD';
   const selectedAssetBadge = isXRP ? 'XRP' : 'XAU';
   const priceDecimals = isXRP ? 4 : 2;
@@ -388,7 +390,7 @@ export default function OrderPanel() {
 
   // Sync risk params from central DataContext
   useEffect(() => {
-    const p = getAssetRiskParams(selectedAssetKey);
+    const p = getAssetRiskParams(effectiveAssetKey);
     if (p) {
       const sL = p.spreadLongBps !== undefined ? Number(p.spreadLongBps) : 30;
       const sS = p.spreadShortBps !== undefined ? Number(p.spreadShortBps) : 30;
@@ -397,11 +399,11 @@ export default function OrderPanel() {
       if (p.maxOILong !== undefined) setMaxOILongVal(Number(p.maxOILong));
       if (p.maxOIShort !== undefined) setMaxOIShortVal(Number(p.maxOIShort));
     }
-  }, [selectedAssetKey, getAssetRiskParams]);
+  }, [effectiveAssetKey, getAssetRiskParams]);
 
   // Sync snapshot config & Open Interest from central DataContext
   useEffect(() => {
-    const assetObj = getAssetSnapshot(selectedAssetKey);
+    const assetObj = getAssetSnapshot(effectiveAssetKey);
     if (!assetObj) return;
 
     const assetSnap = assetObj.snapshot || assetObj;
@@ -421,7 +423,7 @@ export default function OrderPanel() {
         setMinMarginUSD(rawMin > 100000 ? rawMin / 1e6 : rawMin);
       }
     }
-  }, [selectedAssetKey, getAssetSnapshot]);
+  }, [effectiveAssetKey, getAssetSnapshot]);
 
   // Compute exact Ask / Bid using live price * (1 +- spreadBps/100000)
   const defaultFallbackP = isXRP ? 2.45 : 4046.52;
@@ -441,8 +443,6 @@ export default function OrderPanel() {
   const currentOiUSD = currentOiRaw > 100000 ? currentOiRaw / 1e6 : currentOiRaw;
 
   const availLiquidityUSD = Math.max(0, maxLimitUSD - currentOiUSD);
-
-  const { currentMarkPrice: liveMarkPrice } = usePriceStream();
 
   useEffect(() => {
     if (liveMarkPrice > 0) {
